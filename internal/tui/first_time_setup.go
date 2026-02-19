@@ -9,9 +9,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/minicodemonkey/chief/embed"
-	"github.com/minicodemonkey/chief/internal/git"
-	"github.com/minicodemonkey/chief/internal/ollama"
+	"github.com/izdrail/chief/embed"
+	"github.com/izdrail/chief/internal/git"
+	"github.com/izdrail/chief/internal/ollama"
 )
 
 // ghCheckResultMsg is sent when the gh CLI check completes.

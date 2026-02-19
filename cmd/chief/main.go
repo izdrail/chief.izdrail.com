@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/minicodemonkey/chief/internal/cmd"
-	"github.com/minicodemonkey/chief/internal/config"
-	"github.com/minicodemonkey/chief/internal/git"
-	"github.com/minicodemonkey/chief/internal/notify"
-	"github.com/minicodemonkey/chief/internal/prd"
-	"github.com/minicodemonkey/chief/internal/tui"
+	"github.com/izdrail/chief/internal/cmd"
+	"github.com/izdrail/chief/internal/config"
+	"github.com/izdrail/chief/internal/git"
+	"github.com/izdrail/chief/internal/notify"
+	"github.com/izdrail/chief/internal/prd"
+	"github.com/izdrail/chief/internal/tui"
 )
 
 // Version is set at build time via ldflags

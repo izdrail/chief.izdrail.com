@@ -153,12 +153,165 @@
             color: rgba(255, 255, 255, 0.9);
         }
 
+        /* Tab Bar Styles */
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            padding: 0 40px;
+            margin-top: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--fg-dim);
+            cursor: pointer;
+            transition: var(--transition);
+            border-bottom: 2px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab:hover {
+            color: var(--fg);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
         /* Main Content */
         main {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+        }
+
+        .main-view {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+            padding: 24px 40px;
+        }
+
+        .main-view.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .view-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .badge {
+            font-size: 11px;
+            color: var(--fg-dim);
+            font-weight: 800;
+            text-transform: uppercase;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+
+        .mini-btn {
+            background: rgba(122, 162, 247, 0.1);
+            border: 1px solid rgba(122, 162, 247, 0.3);
+            color: var(--accent);
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding-bottom: 2px;
+            transition: var(--transition);
+        }
+
+        .mini-btn:hover {
+            background: var(--accent);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .diff-viewer {
+            flex: 1;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .settings-form {
+            padding: 16px;
+        }
+
+        .settings-section {
+            margin-bottom: 32px;
+        }
+
+        .settings-section h4 {
+            margin: 0 0 16px 0;
+            color: var(--accent);
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .settings-group {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .settings-group label {
+            font-size: 14px;
+            color: var(--fg);
+            font-weight: 500;
+        }
+
+        .settings-group input[type="text"] {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: white;
+            font-family: inherit;
+            transition: var(--transition);
+        }
+
+        .settings-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .settings-group.checkbox {
+            flex-direction: row;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .settings-group .hint {
+            font-size: 12px;
+            color: var(--fg-dim);
+            margin: 0;
         }
 
         header {
@@ -202,10 +355,8 @@
 
         .content-area {
             flex: 1;
-            padding: 40px;
-            display: grid;
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 32px;
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
         }
 
@@ -419,7 +570,7 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
-        /* Tabs */
+        /* Sidebar pill tabs (PR/Issue/Fix) */
         .tabs {
             display: flex;
             background: rgba(0, 0, 0, 0.3);
@@ -428,22 +579,30 @@
             margin-bottom: 24px;
         }
 
-        .tab {
+        .tabs .tab {
             flex: 1;
-            padding: 10px;
+            padding: 8px;
             text-align: center;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 700;
             border-radius: 8px;
             cursor: pointer;
             color: var(--fg-dim);
             transition: var(--transition);
+            border-bottom: none;
         }
 
-        .tab.active {
+        .tabs .tab.active {
             background: var(--accent);
             color: white;
             box-shadow: 0 4px 12px var(--accent-glow);
+            border-bottom: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
@@ -550,36 +709,153 @@
             </div>
         </header>
 
-        <div class="content-area">
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Engineering Logs</div>
-                    <div id="iter-count"
-                        style="font-size: 11px; color: var(--fg-dim); font-weight: 800; text-transform: uppercase; background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 6px;">
-                        Ready</div>
-                </div>
-                <div class="log-window" id="log-window">
-                    <div style="color: var(--fg-dim); text-align: center; margin-top: 100px; font-style: italic;">Select
-                        a PRD and activate the agent to see live logs.</div>
+        <div class="tab-bar">
+            <div class="tab active" onclick="switchMainTab('dashboard')" id="tab-dashboard-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+                Dashboard
+            </div>
+            <div class="tab" onclick="switchMainTab('diff')" id="tab-diff-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 3h5v5"></path>
+                    <path d="M8 3H3v5"></path>
+                    <path d="M12 21V11"></path>
+                    <path d="M12 11l-4 4"></path>
+                    <path d="M12 11l4 4"></path>
+                </svg>
+                Git Diff
+            </div>
+            <div class="tab" onclick="switchMainTab('settings')" id="tab-settings-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                    </path>
+                </svg>
+                Settings
+            </div>
+        </div>
+        <div class="content-area" id="main-content">
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="main-view active">
+                <div class="view-grid">
+                    <div class="card" id="lifecycle-actions" style="grid-column: span 2; display: none;">
+                        <div class="card-header">
+                            <div class="card-title">Project Lifecycle Actions</div>
+                        </div>
+                        <div style="padding: 16px; display: flex; gap: 12px; align-items: center;">
+                            <button class="primary" onclick="gitPush()">Push Branch</button>
+                            <button class="primary" onclick="gitPR()">Create PR</button>
+                            <button class="secondary" onclick="gitMerge()">Merge to Main</button>
+                            <button class="secondary" style="color: var(--error);" onclick="gitClean()">Clean
+                                Worktree</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Engineering Logs</div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <div style="display: flex; gap: 4px;">
+                                    <button class="mini-btn" onclick="adjustIterations(-5)"
+                                        title="Decrease max iterations">-</button>
+                                    <button class="mini-btn" onclick="adjustIterations(5)"
+                                        title="Increase max iterations">+</button>
+                                </div>
+                                <div id="iter-count" class="badge">Ready</div>
+                            </div>
+                        </div>
+                        <div class="log-window" id="log-window">
+                            <div
+                                style="color: var(--fg-dim); text-align: center; margin-top: 100px; font-style: italic;">
+                                Select a PRD and activate the agent to see live logs.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Requirements Specification</div>
+                        </div>
+                        <div class="prd-viewer" id="prd-content">
+                            <div style="text-align: center; margin-top: 100px; color: var(--fg-dim);">
+                                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                                    style="opacity: 0.2; margin-bottom: 20px;">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                </svg>
+                                <p>Select a product to view specifications</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">Requirements Specification</div>
+            <!-- Git Diff View -->
+            <div id="view-diff" class="main-view">
+                <div class="card" style="height: 100%; display: flex; flex-direction: column;">
+                    <div class="card-header">
+                        <div class="card-title">Git Changes</div>
+                        <div class="card-actions">
+                            <button class="secondary" onclick="refreshDiff()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M23 4v6h-6"></path>
+                                    <path d="M1 20v-6h6"></path>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15">
+                                    </path>
+                                </svg>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div id="diff-content" class="diff-viewer">
+                        <div style="text-align: center; margin-top: 100px; color: var(--fg-dim); font-style: italic;">
+                            No changes to display.
+                        </div>
+                    </div>
                 </div>
-                <div class="prd-viewer" id="prd-content">
-                    <div style="text-align: center; margin-top: 100px; color: var(--fg-dim);">
-                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
-                            style="opacity: 0.2; margin-bottom: 20px;">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                            <polyline points="10 9 9 9 8 9"></polyline>
-                        </svg>
-                        <p>Select a product to view specifications</p>
+            </div>
+
+            <!-- Settings View -->
+            <div id="view-settings" class="main-view">
+                <div class="card" style="max-width: 800px; margin: 0 auto;">
+                    <div class="card-header">
+                        <div class="card-title">System Settings</div>
+                    </div>
+                    <div class="settings-form">
+                        <div class="settings-section">
+                            <h4>Git Integration</h4>
+                            <div class="settings-group">
+                                <label>Worktree Setup Command</label>
+                                <input type="text" id="setting-worktree-setup" placeholder="e.g. npm install">
+                                <p class="hint">Command to run after creating a new worktree.</p>
+                            </div>
+                        </div>
+
+                        <div class="settings-section">
+                            <h4>Workflow Automation</h4>
+                            <div class="settings-group checkbox">
+                                <input type="checkbox" id="setting-push-complete">
+                                <label for="setting-push-complete">Push to remote on completion</label>
+                            </div>
+                            <div class="settings-group checkbox">
+                                <input type="checkbox" id="setting-pr-complete">
+                                <label for="setting-pr-complete">Create Pull Request on completion</label>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 32px; display: flex; gap: 12px; justify-content: flex-end;">
+                            <button class="secondary" onclick="loadConfig()">Reset</button>
+                            <button class="primary" onclick="saveConfig()">Save Settings</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -587,35 +863,34 @@
     </main>
 
     <!-- Project Creation Modal -->
-    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
-        <div class="modal" onclick="event.stopPropagation()">
-            <h3 style="margin-top: 0; font-size: 24px;">Initialize New PRD</h3>
-            <p style="color: var(--fg-dim); margin-bottom: 30px;">Describe your feature or product, and Chief will
-                generate a full specification.</p>
-            <form onsubmit="submitNewPRD(event)">
-                <label
-                    style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim); display: block; margin-bottom: 8px;">Target
-                    Repository (Optional)</label>
-                <select id="new-prd-repo" class="repo-select">
-                    <option value="">No repository (local only)</option>
-                </select>
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3 style="margin-top: 0; font-size: 24px;">Initialize New PRD</h3>
+        <p style="color: var(--fg-dim); margin-bottom: 30px;">Describe your feature or product, and Chief will
+            generate a full specification.</p>
+        <form onsubmit="submitNewPRD(event)">
+            <label
+                style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim); display: block; margin-bottom: 8px;">Target
+                Repository (Optional)</label>
+            <select id="new-prd-repo" class="repo-select">
+                <option value="">No repository (local only)</option>
+            </select>
 
-                <label
-                    style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim); display: block; margin-bottom: 8px;">Project
-                    Name (Slug)</label>
-                <input id="new-prd-name" placeholder="e.g. user-authentication" required>
+            <label
+                style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim); display: block; margin-bottom: 8px;">Project
+                Name (Slug)</label>
+            <input id="new-prd-name" placeholder="e.g. user-authentication" required>
 
-                <label
-                    style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim); display: block; margin-bottom: 8px;">Core
-                    Requirements</label>
-                <textarea id="new-prd-desc" rows="5"
-                    placeholder="What are we building? Include key features and constraints..." required></textarea>
-                <div style="display: flex; gap: 12px; margin-top: 20px;">
-                    <button type="submit" class="primary" style="flex: 1;">Generate PRD</button>
-                    <button type="button" class="secondary" onclick="closeModal()">Cancel</button>
-                </div>
-            </form>
-        </div>
+            <label
+                style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim); display: block; margin-bottom: 8px;">Core
+                Requirements</label>
+            <textarea id="new-prd-desc" rows="5"
+                placeholder="What are we building? Include key features and constraints..." required></textarea>
+            <div style="display: flex; gap: 12px; margin-top: 20px;">
+                <button type="submit" class="primary" style="flex: 1;">Generate PRD</button>
+                <button type="button" class="secondary" onclick="closeModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
     </div>
 
     <script>
@@ -680,7 +955,10 @@
                         <div class="story-card">
                             <div class="story-header">
                                 <span class="story-id">${s.id}</span>
-                                <span class="story-status ${s.passes ? 'status-done' : 'status-todo'}">${s.passes ? 'COMPLETE' : 'PENDING'}</span>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <span class="story-status ${s.passes ? 'status-done' : 'status-todo'}">${s.passes ? 'COMPLETE' : 'PENDING'}</span>
+                                    <button onclick="deleteStory('${prd.project}', '${s.id}')" title="Delete Story" style="background: none; border: none; color: var(--fg-dim); cursor: pointer; padding: 2px; font-size: 16px; line-height: 1; opacity: 0.4; transition: var(--transition);" onmouseover="this.style.opacity='1'; this.style.color='var(--error)'" onmouseout="this.style.opacity='0.4'; this.style.color='var(--fg-dim)'">&times;</button>
+                                </div>
                             </div>
                             <div class="story-title">${s.title}</div>
                             <p style="font-size: 13px; color: var(--fg-dim); margin: 8px 0;">${s.description}</p>
@@ -702,25 +980,130 @@
             const description = document.getElementById('new-prd-desc').value;
             const repoSelect = document.getElementById('new-prd-repo');
             const repo_url = repoSelect.options[repoSelect.selectedIndex]?.dataset.cloneUrl || '';
+            const restart = e.submitter && e.submitter.dataset.restart === 'true';
 
-            const btn = e.target.querySelector('button[type="submit"]');
-            btn.disabled = true; btn.innerText = 'Creating Workspace...';
+            const form = e.target;
+            const btn = form.querySelector('button[type="submit"]');
+            const originalBtnText = btn.innerText;
+
+            // Update UI to show creation is in progress
+            form.querySelectorAll('input, textarea, select, button').forEach(el => el.disabled = true);
+
+            let statusContainer = document.getElementById('creation-status-container');
+            if (!statusContainer) {
+                statusContainer = document.createElement('div');
+                statusContainer.id = 'creation-status-container';
+                statusContainer.style.marginTop = '24px';
+                statusContainer.style.padding = '16px';
+                statusContainer.style.background = 'rgba(0,0,0,0.3)';
+                statusContainer.style.borderRadius = '12px';
+                statusContainer.style.border = '1px solid var(--border)';
+                form.appendChild(statusContainer);
+            }
+            statusContainer.style.display = 'block';
+            statusContainer.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <div class="spinner" style="width: 20px; height: 20px; border: 2px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+                    <span id="creation-status-text" style="font-weight: 600; font-size: 14px;">Initializing...</span>
+                </div>
+                <div style="width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
+                    <div id="creation-progress-bar" style="width: 10%; height: 100%; background: var(--accent); transition: width 0.5s ease;"></div>
+                </div>
+                <div id="creation-error-msg" style="color: var(--error); font-size: 13px; margin-top: 12px; display: none;"></div>
+            `;
 
             try {
                 const res = await fetch('/api/prd/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, description, repo_url })
+                    body: JSON.stringify({ name, description, repo_url, restart })
                 });
-                if (res.ok) {
-                    closeModal();
-                    await fetchPRDs();
-                    selectPRD(name);
+
+                if (res.status === 202 || res.ok) {
+                    await pollCreationStatus(name);
                 } else {
-                    alert('Creation failed: ' + await res.text());
+                    const error = await res.text();
+                    showCreationError(error, name);
                 }
-            } catch (e) { alert('Server error'); }
-            finally { btn.disabled = false; btn.innerText = 'Generate PRD'; }
+            } catch (e) {
+                showCreationError('Connection failed', name);
+            }
+        }
+
+        function showCreationError(error, name) {
+            const statusContainer = document.getElementById('creation-status-container');
+            const statusText = document.getElementById('creation-status-text');
+            const progressBar = document.getElementById('creation-progress-bar');
+            const errorMsg = document.getElementById('creation-error-msg');
+            const form = statusContainer.closest('form');
+
+            statusText.innerText = 'Creation Failed';
+            statusText.style.color = 'var(--error)';
+            progressBar.style.background = 'var(--error)';
+            errorMsg.innerText = error;
+            errorMsg.style.display = 'block';
+
+            // Re-enable form but add a "Restart" button
+            form.querySelectorAll('input, textarea, select').forEach(el => el.disabled = false);
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'Retry Generation';
+            submitBtn.dataset.restart = 'true';
+
+            const cancelBtn = form.querySelector('button.secondary');
+            cancelBtn.disabled = false;
+        }
+
+        async function pollCreationStatus(name) {
+            const statusText = document.getElementById('creation-status-text');
+            const progressBar = document.getElementById('creation-progress-bar');
+            const statusMap = {
+                'pending': { progress: 10, text: 'Starting creation process...' },
+                'cloning': { progress: 30, text: 'Cloning repository...' },
+                'generating': { progress: 50, text: 'Generating specification (AI)...' },
+                'converting': { progress: 80, text: 'Finalizing PRD documents...' },
+                'syncing': { progress: 95, text: 'Syncing to database...' },
+                'complete': { progress: 100, text: 'PRD created successfully!' }
+            };
+
+            const poll = async () => {
+                try {
+                    const res = await fetch(`/api/prd/create/status?name=${name}`);
+                    if (!res.ok) throw new Error('Status check failed');
+                    const data = await res.json();
+
+                    const info = statusMap[data.status] || { progress: 50, text: data.message };
+                    statusText.innerText = info.text;
+                    progressBar.style.width = info.progress + '%';
+
+                    if (data.status === 'complete') {
+                        setTimeout(() => {
+                            closeModal();
+                            document.getElementById('creation-status-container').style.display = 'none';
+                            // Reset form
+                            const form = document.querySelector('form[onsubmit="submitNewPRD(event)"]');
+                            form.reset();
+                            form.querySelectorAll('input, textarea, select, button').forEach(el => el.disabled = false);
+                            form.querySelector('button[type="submit"]').innerText = 'Generate PRD';
+                            delete form.querySelector('button[type="submit"]').dataset.restart;
+
+                            fetchPRDs().then(() => selectPRD(name));
+                        }, 1000);
+                        return;
+                    }
+
+                    if (data.status === 'error') {
+                        showCreationError(data.error || data.message, name);
+                        return;
+                    }
+
+                    setTimeout(poll, 1500);
+                } catch (e) {
+                    setTimeout(poll, 3000);
+                }
+            };
+
+            poll();
         }
 
         async function startAgent() {
@@ -770,6 +1153,99 @@
             } catch (e) { alert('Server error'); }
         }
 
+        async function deleteStory(prdName, storyId) {
+            if (!confirm(`Delete story ${storyId}?`)) return;
+            try {
+                const res = await fetch('/api/story/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prd_name: prdName, story_id: storyId })
+                });
+                if (res.ok) {
+                    selectPRD(currentPRD); // Reload
+                } else {
+                    alert('Delete failed: ' + await res.text());
+                }
+            } catch (e) { alert('Server error'); }
+        }
+
+        async function gitPush() {
+            if (!currentPRD) return;
+            try {
+                const res = await fetch('/api/git/push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentPRD })
+                });
+                if (res.ok) alert('Push successful');
+                else alert('Push failed: ' + await res.text());
+            } catch (e) { alert('Server error'); }
+        }
+
+        async function gitPR() {
+            if (!currentPRD) return;
+            try {
+                const res = await fetch('/api/git/pr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentPRD })
+                });
+                if (res.ok) {
+                    const pr = await res.json();
+                    alert(`PR created: ${pr.html_url}`);
+                    window.open(pr.html_url, '_blank');
+                } else alert('PR failed: ' + await res.text());
+            } catch (e) { alert('Server error'); }
+        }
+
+        async function gitMerge() {
+            if (!currentPRD) return;
+            if (!confirm('Merge this branch into main?')) return;
+            try {
+                const res = await fetch('/api/git/merge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentPRD })
+                });
+                if (res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    if (data.conflicts) {
+                        alert('Merge conflicts: ' + data.conflicts.join(', '));
+                    } else {
+                        alert('Merge successful');
+                    }
+                } else alert('Merge failed: ' + await res.text());
+            } catch (e) { alert('Server error'); }
+        }
+
+        async function gitClean() {
+            if (!currentPRD) return;
+            if (!confirm('Clean up worktree for this project?')) return;
+            try {
+                const res = await fetch('/api/git/clean', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentPRD })
+                });
+                if (res.ok) alert('Clean up successful');
+                else alert('Clean up failed: ' + await res.text());
+            } catch (e) { alert('Server error'); }
+        }
+
+        async function adjustIterations(delta) {
+            try {
+                const res = await fetch('/api/agent/iterations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentPRD, delta: delta })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    console.log('Max iterations is now:', data.max_iterations);
+                }
+            } catch (e) { }
+        }
+
         async function updateStatus() {
             if (!currentPRD) return;
             try {
@@ -783,6 +1259,14 @@
                 document.getElementById('btn-start').disabled = data.state === 1;
                 document.getElementById('btn-stop').disabled = data.state !== 1;
                 document.getElementById('iter-count').innerText = data.state === 1 ? `ITERATION ${data.iteration}` : stateText;
+
+                // Show lifecycle actions if complete
+                const lifecycle = document.getElementById('lifecycle-actions');
+                if (data.state === 4) { // Complete
+                    lifecycle.style.display = 'block';
+                } else {
+                    lifecycle.style.display = 'none';
+                }
             } catch (e) { }
         }
 
@@ -925,6 +1409,61 @@
                 });
                 if (res.ok) alert('Fix request sent to AI');
                 else alert('Error: ' + await res.text());
+            } catch (e) { alert('Server error'); }
+        }
+
+        function switchMainTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`tab-${tabName}-btn`).classList.add('active');
+            document.querySelectorAll('.main-view').forEach(v => v.classList.remove('active'));
+            document.getElementById(`view-${tabName}`).classList.add('active');
+            if (tabName === 'diff') refreshDiff();
+            if (tabName === 'settings') loadConfig();
+        }
+
+        async function refreshDiff() {
+            if (!currentPRD) return;
+            const content = document.getElementById('diff-content');
+            content.innerHTML = '<div style="text-align: center; margin-top: 100px; color: var(--fg-dim);">Loading diff...</div>';
+            try {
+                const res = await fetch(`/api/git/diff?name=${currentPRD}`);
+                const data = await res.json();
+                if (data.diff) {
+                    content.innerText = data.diff;
+                } else {
+                    content.innerHTML = '<div style="text-align: center; margin-top: 100px; color: var(--fg-dim); font-style: italic;">No changes to display.</div>';
+                }
+            } catch (e) {
+                content.innerHTML = '<div style="text-align: center; margin-top: 100px; color: var(--error);">Failed to load diff.</div>';
+            }
+        }
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const cfg = await res.json();
+                document.getElementById('setting-worktree-setup').value = cfg.worktree.setup || '';
+                document.getElementById('setting-push-complete').checked = cfg.onComplete.push || false;
+                document.getElementById('setting-pr-complete').checked = cfg.onComplete.createPR || false;
+            } catch (e) { console.error('Failed to load config', e); }
+        }
+
+        async function saveConfig() {
+            const cfg = {
+                worktree: { setup: document.getElementById('setting-worktree-setup').value },
+                onComplete: {
+                    push: document.getElementById('setting-push-complete').checked,
+                    createPR: document.getElementById('setting-pr-complete').checked
+                }
+            };
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cfg)
+                });
+                if (res.ok) alert('Settings saved successfully');
+                else alert('Failed to save settings');
             } catch (e) { alert('Server error'); }
         }
 

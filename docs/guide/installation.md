@@ -53,7 +53,7 @@ The `gh` CLI is only required for automatic PR creation. All other features work
 The easiest way to install Chief on **macOS** or **Linux**:
 
 ```bash
-brew install minicodemonkey/chief/chief
+brew install izdrail/chief/chief
 ```
 
 This method:
@@ -72,7 +72,7 @@ brew update && brew upgrade chief
 Download and install with a single command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/minicodemonkey/chief/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/izdrail/chief/main/install.sh | bash
 ```
 
 The script automatically detects your platform and downloads the appropriate binary.
@@ -89,13 +89,13 @@ The script automatically detects your platform and downloads the appropriate bin
 
 ```bash
 # Install a specific version
-curl -fsSL https://raw.githubusercontent.com/minicodemonkey/chief/main/install.sh | bash -s -- --version v0.1.0
+curl -fsSL https://raw.githubusercontent.com/izdrail/chief/main/install.sh | bash -s -- --version v0.1.0
 
 # Install to a custom directory
-curl -fsSL https://raw.githubusercontent.com/minicodemonkey/chief/main/install.sh | bash -s -- --dir ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/izdrail/chief/main/install.sh | bash -s -- --dir ~/.local/bin
 
 # Both options combined
-curl -fsSL https://raw.githubusercontent.com/minicodemonkey/chief/main/install.sh | bash -s -- --version v0.1.0 --dir /opt/chief
+curl -fsSL https://raw.githubusercontent.com/izdrail/chief/main/install.sh | bash -s -- --version v0.1.0 --dir /opt/chief
 ```
 
 ::: info Custom Directory
@@ -108,7 +108,7 @@ Add this to your shell profile (`.bashrc`, `.zshrc`, etc.) to persist it.
 
 ## Manual Binary Download
 
-Download the binary for your platform from the [GitHub Releases page](https://github.com/minicodemonkey/chief/releases).
+Download the binary for your platform from the [GitHub Releases page](https://github.com/izdrail/chief/releases).
 
 ### Platform Matrix
 
@@ -125,7 +125,7 @@ Download the binary for your platform from the [GitHub Releases page](https://gi
 
 ```bash [macOS Apple Silicon]
 # Download the binary
-curl -LO https://github.com/minicodemonkey/chief/releases/latest/download/chief-darwin-arm64
+curl -LO https://github.com/izdrail/chief/releases/latest/download/chief-darwin-arm64
 
 # Make it executable
 chmod +x chief-darwin-arm64
@@ -136,7 +136,7 @@ sudo mv chief-darwin-arm64 /usr/local/bin/chief
 
 ```bash [macOS Intel]
 # Download the binary
-curl -LO https://github.com/minicodemonkey/chief/releases/latest/download/chief-darwin-amd64
+curl -LO https://github.com/izdrail/chief/releases/latest/download/chief-darwin-amd64
 
 # Make it executable
 chmod +x chief-darwin-amd64
@@ -147,7 +147,7 @@ sudo mv chief-darwin-amd64 /usr/local/bin/chief
 
 ```bash [Linux x64]
 # Download the binary
-curl -LO https://github.com/minicodemonkey/chief/releases/latest/download/chief-linux-amd64
+curl -LO https://github.com/izdrail/chief/releases/latest/download/chief-linux-amd64
 
 # Make it executable
 chmod +x chief-linux-amd64
@@ -158,7 +158,7 @@ sudo mv chief-linux-amd64 /usr/local/bin/chief
 
 ```bash [Linux ARM64]
 # Download the binary
-curl -LO https://github.com/minicodemonkey/chief/releases/latest/download/chief-linux-arm64
+curl -LO https://github.com/izdrail/chief/releases/latest/download/chief-linux-arm64
 
 # Make it executable
 chmod +x chief-linux-arm64
@@ -193,7 +193,7 @@ Build Chief from source if you want the latest development version or need to cu
 
 ```bash
 # Clone the repository
-git clone https://github.com/minicodemonkey/chief.git
+git clone https://github.com/izdrail/chief.git
 cd chief
 
 # Build the binary

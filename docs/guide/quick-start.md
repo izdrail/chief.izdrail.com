@@ -28,15 +28,15 @@ Choose your preferred installation method:
 ::: code-group
 
 ```bash [Homebrew (Recommended)]
-brew install minicodemonkey/chief/chief
+brew install izdrail/chief/chief
 ```
 
 ```bash [Install Script]
-curl -fsSL https://raw.githubusercontent.com/minicodemonkey/chief/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/izdrail/chief/main/install.sh | bash
 ```
 
 ```bash [From Source]
-git clone https://github.com/minicodemonkey/chief.git
+git clone https://github.com/izdrail/chief.git
 cd chief
 go build -o chief ./cmd/chief
 mv chief /usr/local/bin/

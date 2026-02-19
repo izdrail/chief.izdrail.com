@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/minicodemonkey/chief/internal/git"
-	"github.com/minicodemonkey/chief/internal/loop"
-	"github.com/minicodemonkey/chief/internal/prd"
+	"github.com/izdrail/chief/internal/git"
+	"github.com/izdrail/chief/internal/loop"
+	"github.com/izdrail/chief/internal/prd"
 )
 
 // PRDEntry represents a PRD in the picker list.
@@ -59,6 +59,22 @@ type CleanResult struct {
 	Message string // Success or error message
 }
 
+// CreationStatus holds the state of a background PRD creation.
+type CreationStatus struct {
+	PRDName string
+	Status  string // "pending", "generating", "converting", "syncing", "complete", "error"
+	Message string
+	Error   string
+}
+
+// PickerInputStep represents the current step in the PRD creation flow.
+type PickerInputStep int
+
+const (
+	InputStepName PickerInputStep = iota
+	InputStepDescription
+)
+
 // PRDPicker manages the PRD picker modal state.
 type PRDPicker struct {
 	entries       []PRDEntry
@@ -67,12 +83,15 @@ type PRDPicker struct {
 	height        int
 	basePath      string        // Base path where .chief/prds/ is located
 	currentPRD    string        // Name of the currently active PRD
-	inputMode     bool          // Whether we're in input mode for new PRD name
-	inputValue    string        // The current input value for new PRD name
+	inputMode     bool          // Whether we're in input mode for new PRD
+	inputStep     PickerInputStep
+	inputValue    string        // The current input value (name)
+	inputDesc     string        // The current input value (description)
 	manager            *loop.Manager      // Reference to the loop manager for status updates
 	mergeResult        *MergeResult       // Result of the last merge operation (nil = none)
 	cleanConfirmation  *CleanConfirmation // Active clean confirmation dialog (nil = none)
 	cleanResult        *CleanResult       // Result of the last clean operation (nil = none)
+	creationTasks      map[string]*CreationStatus // Map of active creation tasks
 }
 
 // NewPRDPicker creates a new PRD picker.
@@ -84,7 +103,9 @@ func NewPRDPicker(basePath string, currentPRDName string, manager *loop.Manager)
 		currentPRD:    currentPRDName,
 		inputMode:     false,
 		inputValue:    "",
+		inputDesc:     "",
 		manager:       manager,
+		creationTasks: make(map[string]*CreationStatus),
 	}
 	p.Refresh()
 	return p
@@ -174,6 +195,17 @@ func (p *PRDPicker) Refresh() {
 					LoadError:   fmt.Errorf("orphaned worktree (no prd.json)"),
 				})
 			}
+		}
+	}
+
+	// Add entries for active creation tasks that don't have a directory yet
+	for name, _ := range p.creationTasks {
+		if !addedNames[name] {
+			p.entries = append(p.entries, PRDEntry{
+				Name:      name,
+				Path:      filepath.Join(prdsDir, name, "prd.json"),
+				LoopState: loop.LoopStateReady,
+			})
 		}
 	}
 
@@ -273,13 +305,57 @@ func (p *PRDPicker) IsInputMode() bool {
 // StartInputMode enters input mode for creating a new PRD.
 func (p *PRDPicker) StartInputMode() {
 	p.inputMode = true
+	p.inputStep = InputStepName
 	p.inputValue = ""
+	p.inputDesc = ""
+}
+
+// NextInputStep moves to the next input step or returns true if finished.
+func (p *PRDPicker) NextInputStep() bool {
+	if p.inputStep == InputStepName {
+		if strings.TrimSpace(p.inputValue) == "" {
+			return false
+		}
+		p.inputStep = InputStepDescription
+		return false
+	}
+	return true
+}
+
+// PreviousInputStep moves to the previous input step or returns true if cancelled.
+func (p *PRDPicker) PreviousInputStep() bool {
+	if p.inputStep == InputStepDescription {
+		p.inputStep = InputStepName
+		return false
+	}
+	p.CancelInputMode()
+	return true
 }
 
 // CancelInputMode exits input mode without creating a PRD.
 func (p *PRDPicker) CancelInputMode() {
 	p.inputMode = false
 	p.inputValue = ""
+	p.inputDesc = ""
+}
+
+// GetInputStep returns the current input step.
+func (p *PRDPicker) GetInputStep() PickerInputStep {
+	return p.inputStep
+}
+
+// GetInputDescription returns the current input description.
+func (p *PRDPicker) GetInputDescription() string {
+	return p.inputDesc
+}
+
+// SetCreationTask updates or adds a creation task status.
+func (p *PRDPicker) SetCreationTask(status *CreationStatus) {
+	if p.creationTasks == nil {
+		p.creationTasks = make(map[string]*CreationStatus)
+	}
+	p.creationTasks[status.PRDName] = status
+	p.Refresh()
 }
 
 // GetInputValue returns the current input value.
@@ -289,17 +365,27 @@ func (p *PRDPicker) GetInputValue() string {
 
 // AddInputChar adds a character to the input.
 func (p *PRDPicker) AddInputChar(ch rune) {
-	// Only allow valid directory name characters
-	if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-		(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
-		p.inputValue += string(ch)
+	if p.inputStep == InputStepName {
+		// Only allow valid directory name characters
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
+			p.inputValue += string(ch)
+		}
+	} else {
+		p.inputDesc += string(ch)
 	}
 }
 
 // DeleteInputChar removes the last character from the input.
 func (p *PRDPicker) DeleteInputChar() {
-	if len(p.inputValue) > 0 {
-		p.inputValue = p.inputValue[:len(p.inputValue)-1]
+	if p.inputStep == InputStepName {
+		if len(p.inputValue) > 0 {
+			p.inputValue = p.inputValue[:len(p.inputValue)-1]
+		}
+	} else {
+		if len(p.inputDesc) > 0 {
+			p.inputDesc = p.inputDesc[:len(p.inputDesc)-1]
+		}
 	}
 }
 
@@ -557,6 +643,20 @@ func (p *PRDPicker) renderEntry(entry PRDEntry, selected bool, width int) string
 			displayPath := p.worktreeDisplayPath(entry)
 			line.WriteString(pathStyle.Render("  " + displayPath))
 		}
+	} else if task, ok := p.creationTasks[entry.Name]; ok && task.Status != "complete" {
+		// Show creation status instead of progress bar
+		statusStyle := lipgloss.NewStyle()
+		if task.Status == "error" {
+			statusStyle = statusStyle.Foreground(ErrorColor)
+			line.WriteString(statusStyle.Render(fmt.Sprintf("[error: %s]", task.Message)))
+		} else {
+			statusStyle = statusStyle.Foreground(PrimaryColor)
+			statusLabel := task.Status
+			if statusLabel == "" {
+				statusLabel = "creating"
+			}
+			line.WriteString(statusStyle.Render(fmt.Sprintf("[%s...]", statusLabel)))
+		}
 	} else if entry.LoadError != nil {
 		// Show error indicator
 		errorStyle := lipgloss.NewStyle().Foreground(ErrorColor)
@@ -698,36 +798,65 @@ func (p *PRDPicker) renderLoopStateIndicator(entry PRDEntry) string {
 	}
 }
 
-// renderInputMode renders the input mode for new PRD name.
+// renderInputMode renders the input mode for new PRD.
 func (p *PRDPicker) renderInputMode(width int) string {
 	var content strings.Builder
 
 	labelStyle := lipgloss.NewStyle().
 		Foreground(PrimaryColor).
 		Bold(true)
-	content.WriteString(labelStyle.Render("New PRD name:"))
-	content.WriteString("\n\n")
 
-	// Input field
-	inputStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(PrimaryColor).
-		Padding(0, 1).
-		Width(width - 4)
+	if p.inputStep == InputStepName {
+		content.WriteString(labelStyle.Render("New PRD name:"))
+		content.WriteString("\n\n")
 
-	inputValue := p.inputValue
-	if inputValue == "" {
-		inputValue = lipgloss.NewStyle().Foreground(MutedColor).Render("(type a name...)")
+		// Input field
+		inputStyle := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(PrimaryColor).
+			Padding(0, 1).
+			Width(width - 4)
+
+		inputValue := p.inputValue
+		if inputValue == "" {
+			inputValue = lipgloss.NewStyle().Foreground(MutedColor).Render("(type a name...)")
+		}
+		// Add cursor
+		cursorStyle := lipgloss.NewStyle().Foreground(PrimaryColor).Blink(true)
+		if p.inputValue != "" || !strings.Contains(inputValue, "(") {
+			inputValue += cursorStyle.Render("▌")
+		} else {
+			// Placeholder shown - cursor at start
+			inputValue = cursorStyle.Render("▌") + inputValue
+		}
+
+		content.WriteString(inputStyle.Render(inputValue))
+		content.WriteString("\n\n")
+		content.WriteString(lipgloss.NewStyle().Foreground(MutedColor).Render("Only letters, numbers, - and _ allowed"))
+	} else {
+		content.WriteString(labelStyle.Render("Describe your feature/product:"))
+		content.WriteString("\n\n")
+
+		// Description field (multiline-ish)
+		inputStyle := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(PrimaryColor).
+			Padding(0, 1).
+			Width(width - 4).
+			Height(5)
+
+		inputDesc := p.inputDesc
+		if inputDesc == "" {
+			inputDesc = "\n" + lipgloss.NewStyle().Foreground(MutedColor).Render("(Enter a description... Chief will generate the specification)")
+		}
+		// Add cursor
+		cursorStyle := lipgloss.NewStyle().Foreground(PrimaryColor).Blink(true)
+		inputDesc += cursorStyle.Render("▌")
+
+		content.WriteString(inputStyle.Render(inputDesc))
+		content.WriteString("\n\n")
+		content.WriteString(lipgloss.NewStyle().Foreground(MutedColor).Render("Enter: Confirm & Generate  │  Esc: Back"))
 	}
-	// Add cursor
-	cursorStyle := lipgloss.NewStyle().Foreground(PrimaryColor).Blink(true)
-	inputValue += cursorStyle.Render("▌")
-
-	content.WriteString(inputStyle.Render(inputValue))
-	content.WriteString("\n\n")
-
-	hintStyle := lipgloss.NewStyle().Foreground(MutedColor)
-	content.WriteString(hintStyle.Render("Only letters, numbers, - and _ allowed"))
 
 	return content.String()
 }

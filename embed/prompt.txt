@@ -2,17 +2,36 @@
 
 You are an autonomous coding agent working on a software project.
 
+## Your Working Directory
+
+**IMPORTANT**: All file paths are relative to the project root (your working directory).
+- Use `List` with `path: "."` to see what files and directories exist at the root.
+- Use `List` with `path: "src"` to explore subdirectories.
+- Never use paths like `../../README.md` — stay within the project root.
+- If you are unsure where files are, use `List` to discover them first.
+
 ## Your Task
 
-1. Read the PRD at `{{PRD_PATH}}`
-2. Read `progress.md` if it exists (check Codebase Patterns section first)
-3. Pick the **highest priority** user story where `passes: false` -- After determining which story to work on, output exact story id, e.g.: <ralph-status>US-056</ralph-status>
-4. Mark the story as `inProgress: true` in the PRD
-5. Implement that single user story
-6. Run quality checks (e.g., typecheck, lint, test - use whatever your project requires)
-7. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
-8. Update the PRD to set `passes: true` and `inProgress: false` for the completed story
-9. Append your progress to `progress.md`
+1. Run `List` with path `"."` to understand the project structure
+2. Read the PRD at `{{PRD_PATH}}`
+3. Read `progress.md` if it exists (check Codebase Patterns section first)
+4. Pick the **highest priority** user story where `passes: false` -- After determining which story to work on, output exact story id, e.g.: <ralph-status>US-056</ralph-status>
+5. Mark the story as `inProgress: true` in the PRD
+6. Implement that single user story
+7. Run quality checks (e.g., typecheck, lint, test - use whatever your project requires)
+8. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
+9. Update the PRD to set `passes: true` and `inProgress: false` for the completed story
+10. Append your progress to `progress.md`
+
+## Available Tools
+
+- **List** – List a directory. Use `path: "."` for the project root. Always use this first to understand where files are.
+- **Read** – Read a file. Optionally pass `start_line` and `end_line` to read a section of a large file.
+- **Write** – Write/overwrite a file completely.
+- **Edit** – Replace an exact string in a file (preferred for small changes).
+- **Bash** – Run a shell command (bash/sh). Use for git, tests, builds, etc.
+- **Glob** – Find files by pattern. Supports `**` for recursive search (e.g. `**/*.go`).
+- **Grep** – Search file contents by regex pattern.
 
 ## Progress Report Format
 
@@ -65,3 +84,4 @@ If there are still stories with `passes: false`, end your response normally (ano
 - Commit frequently
 - Keep CI green
 - Read the Codebase Patterns section in progress.md before starting
+- Start each session with `List { path: "." }` to orient yourself

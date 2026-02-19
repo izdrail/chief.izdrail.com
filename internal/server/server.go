@@ -8,32 +8,45 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/minicodemonkey/chief/internal/db"
-	"github.com/minicodemonkey/chief/internal/git"
-	"github.com/minicodemonkey/chief/internal/git/api"
-	"github.com/minicodemonkey/chief/internal/loop"
-	"github.com/minicodemonkey/chief/internal/prd"
+	"github.com/izdrail/chief/internal/config"
+	"github.com/izdrail/chief/internal/db"
+	"github.com/izdrail/chief/internal/git"
+	"github.com/izdrail/chief/internal/git/api"
+	"github.com/izdrail/chief/internal/loop"
+	"github.com/izdrail/chief/internal/ollama"
+	"github.com/izdrail/chief/internal/prd"
 )
 
 //go:embed static
 var staticFiles embed.FS
 
-type Server struct {
-	addr        string
-	baseDir     string
-	store       *db.Store
-	apiClient   *api.Client
-	loopManager *loop.Manager
-	mux         *http.ServeMux
-	logBuffer   []string
-	logMu       sync.Mutex
+type CreationStatus struct {
+	PRDName string `json:"prd_name"`
+	Status  string `json:"status"` // "pending", "generating", "converting", "syncing", "complete", "error"
+	Message string `json:"message"`
+	Error   string `json:"error,omitempty"`
 }
 
-func NewServer(addr, baseDir string, gitBaseURL, gitToken string) *Server {
+type Server struct {
+	addr           string
+	baseDir        string
+	store          *db.Store
+	apiClient      *api.Client
+	ollama         *ollama.Client
+	loopManager    *loop.Manager
+	mux            *http.ServeMux
+	logBuffer      []string
+	logMu          sync.Mutex
+	creationStatus map[string]*CreationStatus
+	statusMu       sync.Mutex
+}
+
+func NewServer(addr, baseDir string, gitToken string) *Server {
 	// Initialize SQLite store
 	dbPath := filepath.Join(baseDir, ".chief", "chief.db")
 	os.MkdirAll(filepath.Dir(dbPath), 0755)
@@ -43,12 +56,14 @@ func NewServer(addr, baseDir string, gitBaseURL, gitToken string) *Server {
 	}
 
 	srv := &Server{
-		addr:        addr,
-		baseDir:     baseDir,
-		store:       store,
-		apiClient:   api.NewClient(gitBaseURL, gitToken),
-		loopManager: loop.NewManager(10),
-		mux:         http.NewServeMux(),
+		addr:           addr,
+		baseDir:        baseDir,
+		store:          store,
+		apiClient:      api.NewClient(gitToken),
+		ollama:         ollama.NewClient(),
+		loopManager:    loop.NewManager(10),
+		mux:            http.NewServeMux(),
+		creationStatus: make(map[string]*CreationStatus),
 	}
 	if store != nil {
 		srv.loopManager.SetStore(store)
@@ -60,13 +75,22 @@ func (s *Server) Start() error {
 	s.mux.HandleFunc("/api/prd/list", s.handlePRDList)
 	s.mux.HandleFunc("/api/prd/get", s.handlePRDGet)
 	s.mux.HandleFunc("/api/prd/create", s.handlePRDCreate)
+	s.mux.HandleFunc("/api/prd/create/status", s.handlePRDCreateStatus)
 	s.mux.HandleFunc("/api/prd/delete", s.handlePRDDelete)
 	s.mux.HandleFunc("/api/agent/start", s.handleAgentStart)
 	s.mux.HandleFunc("/api/agent/stop", s.handleAgentStop)
 	s.mux.HandleFunc("/api/agent/status", s.handleAgentStatus)
 	s.mux.HandleFunc("/api/agent/log", s.handleAgentLog)
+	s.mux.HandleFunc("/api/agent/iterations", s.handleAgentIterations)
 	s.mux.HandleFunc("/api/git/repos", s.handleListRepos)
 	s.mux.HandleFunc("/api/git/repos/", s.handleGitRepoAction)
+	s.mux.HandleFunc("/api/git/diff", s.handleGitDiff)
+	s.mux.HandleFunc("/api/git/push", s.handleGitPush)
+	s.mux.HandleFunc("/api/git/pr", s.handleGitPR)
+	s.mux.HandleFunc("/api/git/merge", s.handleGitMerge)
+	s.mux.HandleFunc("/api/git/clean", s.handleGitClean)
+	s.mux.HandleFunc("/api/story/delete", s.handleStoryDelete)
+	s.mux.HandleFunc("/api/config", s.handleConfig)
 	
 	// Serve static frontend
 	subFS, err := fs.Sub(staticFiles, "static")
@@ -103,7 +127,7 @@ func (s *Server) Start() error {
 func (s *Server) handlePRDList(w http.ResponseWriter, r *http.Request) {
 	if s.store != nil {
 		prds, err := s.store.ListProjects()
-		if err == nil {
+		if err == nil && len(prds) > 0 {
 			json.NewEncoder(w).Encode(prds)
 			return
 		}
@@ -305,6 +329,7 @@ func (s *Server) handlePRDCreate(w http.ResponseWriter, r *http.Request) {
 		Name        string `json:"name"`
 		Description string `json:"description"`
 		RepoURL     string `json:"repo_url"`
+		Restart     bool   `json:"restart"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -316,50 +341,88 @@ func (s *Server) handlePRDCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prdDir := filepath.Join(s.baseDir, ".chief", "prds", req.Name)
+	s.statusMu.Lock()
+	if !req.Restart {
+		if status, exists := s.creationStatus[req.Name]; exists && status.Status != "error" && status.Status != "complete" {
+			s.statusMu.Unlock()
+			http.Error(w, "Creation already in progress for this PRD", http.StatusConflict)
+			return
+		}
+	}
+	s.creationStatus[req.Name] = &CreationStatus{
+		PRDName: req.Name,
+		Status:  "pending",
+		Message: "Starting creation process...",
+	}
+	s.statusMu.Unlock()
+
+	// Run in background
+	go s.runPRDCreationTask(req.Name, req.Description, req.RepoURL)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]string{"status": "accepted", "prd_name": req.Name})
+}
+
+func (s *Server) runPRDCreationTask(name, description, repoURL string) {
+	updateStatus := func(status, message, errStr string) {
+		s.statusMu.Lock()
+		defer s.statusMu.Unlock()
+		if s.creationStatus[name] == nil {
+			s.creationStatus[name] = &CreationStatus{PRDName: name}
+		}
+		s.creationStatus[name].Status = status
+		s.creationStatus[name].Message = message
+		s.creationStatus[name].Error = errStr
+	}
+
+	prdDir := filepath.Join(s.baseDir, ".chief", "prds", name)
 	if err := os.MkdirAll(prdDir, 0755); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		updateStatus("error", "Failed to create PRD directory", err.Error())
 		return
 	}
 
 	// Handle repo cloning if provided
-	if req.RepoURL != "" {
-		repoDir := filepath.Join(s.baseDir, ".chief", "repos", req.Name)
+	if repoURL != "" {
+		updateStatus("cloning", "Cloning repository...", "")
+		repoDir := filepath.Join(s.baseDir, ".chief", "repos", name)
 		if _, err := os.Stat(repoDir); os.IsNotExist(err) {
-			s.log(fmt.Sprintf("Cloning repository %s into %s...", req.RepoURL, repoDir))
+			s.log(fmt.Sprintf("Cloning repository %s into %s...", repoURL, repoDir))
 			if err := os.MkdirAll(filepath.Dir(repoDir), 0755); err != nil {
-				http.Error(w, fmt.Sprintf("failed to create repo parent dir: %v", err), http.StatusInternalServerError)
+				updateStatus("error", "Failed to create repo parent dir", err.Error())
 				return
 			}
 			
-			// Get token from env or config if available
 			token := os.Getenv("GITHUB_TOKEN")
-			if err := git.CloneRepo(req.RepoURL, repoDir, token); err != nil {
-				http.Error(w, fmt.Sprintf("clone failed: %v", err), http.StatusInternalServerError)
+			if err := git.CloneRepo(repoURL, repoDir, token); err != nil {
+				updateStatus("error", "Clone failed", err.Error())
 				return
 			}
 		}
 	}
 
 	// Generate the PRD specification first
-	s.log(fmt.Sprintf("Generating specification for %s...", req.Name))
-	if err := prd.GeneratePRD(prdDir, req.Name, req.Description); err != nil {
-		http.Error(w, fmt.Sprintf("generation failed: %v", err), http.StatusInternalServerError)
+	updateStatus("generating", "Generating specification from description...", "")
+	s.log(fmt.Sprintf("Generating specification for %s...", name))
+	if err := prd.GeneratePRD(prdDir, name, description); err != nil {
+		updateStatus("error", "Generation failed", err.Error())
 		return
 	}
 
 	// Run conversion
-	s.log(fmt.Sprintf("Converting new PRD %s to JSON...", req.Name))
+	updateStatus("converting", "Converting new PRD to JSON...", "")
+	s.log(fmt.Sprintf("Converting new PRD %s to JSON...", name))
 	if err := prd.Convert(prd.ConvertOptions{PRDDir: prdDir, Force: true}); err != nil {
-		http.Error(w, fmt.Sprintf("conversion failed: %v", err), http.StatusInternalServerError)
+		updateStatus("error", "Conversion failed", err.Error())
 		return
 	}
 
 	// Sync to DB
+	updateStatus("syncing", "Syncing to database...", "")
 	if s.store != nil {
 		p, err := prd.LoadPRD(filepath.Join(prdDir, "prd.json"))
 		if err == nil {
-			projectID, err := s.store.SaveProject(req.Name, p.Project, p.Description, req.RepoURL)
+			projectID, err := s.store.SaveProject(name, p.Project, p.Description, repoURL)
 			if err == nil {
 				for _, story := range p.UserStories {
 					s.store.SaveStory(projectID, db.StoryDB{
@@ -376,8 +439,27 @@ func (s *Server) handlePRDCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "PRD %s created", req.Name)
+	updateStatus("complete", "PRD created successfully", "")
+}
+
+func (s *Server) handlePRDCreateStatus(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "name required", http.StatusBadRequest)
+		return
+	}
+
+	s.statusMu.Lock()
+	status, exists := s.creationStatus[name]
+	s.statusMu.Unlock()
+
+	if !exists {
+		http.Error(w, "No creation task found for this PRD", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
 }
 
 func (s *Server) handlePRDDelete(w http.ResponseWriter, r *http.Request) {
@@ -434,6 +516,38 @@ func (s *Server) handlePRDDelete(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "PRD %s deleted", req.Name)
 }
 
+func (s *Server) handleAgentIterations(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		json.NewEncoder(w).Encode(map[string]int{"max_iterations": s.loopManager.MaxIterations()})
+		return
+	}
+	if r.Method == http.MethodPost {
+		var req struct {
+			Name  string `json:"name"`
+			Delta int    `json:"delta"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		current := s.loopManager.MaxIterations()
+		newMax := current + req.Delta
+		if newMax < 1 {
+			newMax = 1
+		}
+
+		s.loopManager.SetMaxIterations(newMax)
+		if req.Name != "" {
+			s.loopManager.SetMaxIterationsForInstance(req.Name, newMax)
+		}
+
+		json.NewEncoder(w).Encode(map[string]int{"max_iterations": newMax})
+		return
+	}
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
 func (s *Server) handleAgentLog(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if s.store != nil && name != "" {
@@ -478,7 +592,12 @@ func (s *Server) handleGitRepoAction(w http.ResponseWriter, r *http.Request) {
 	switch action {
 	case "pulls":
 		if r.Method == http.MethodGet {
-			s.handleListPullRequests(w, r, owner, repo)
+			if len(parts) > 6 {
+				num, _ := strconv.Atoi(parts[6])
+				s.handleGetPullRequest(w, r, owner, repo, num)
+			} else {
+				s.handleListPullRequests(w, r, owner, repo)
+			}
 		} else if r.Method == http.MethodPost {
 			s.handleCreatePR(w, r, owner, repo)
 		} else {
@@ -486,7 +605,12 @@ func (s *Server) handleGitRepoAction(w http.ResponseWriter, r *http.Request) {
 		}
 	case "issues":
 		if r.Method == http.MethodGet {
-			s.handleListIssues(w, r, owner, repo)
+			if len(parts) > 6 {
+				num, _ := strconv.Atoi(parts[6])
+				s.handleGetIssue(w, r, owner, repo, num)
+			} else {
+				s.handleListIssues(w, r, owner, repo)
+			}
 		} else if r.Method == http.MethodPost {
 			s.handleCreateIssue(w, r, owner, repo)
 		} else {
@@ -531,9 +655,7 @@ func (s *Server) handleCreatePR(w http.ResponseWriter, r *http.Request, owner, r
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	req.Owner = owner
-	req.Repo = repo
-	if err := s.apiClient.CreatePullRequest(req); err != nil {
+	if _, err := s.apiClient.CreatePullRequest(owner, repo, req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -546,9 +668,7 @@ func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request, owner
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	req.Owner = owner
-	req.Repo = repo
-	if err := s.apiClient.CreateIssue(req); err != nil {
+	if _, err := s.apiClient.CreateIssue(owner, repo, req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -556,18 +676,67 @@ func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request, owner
 }
 
 func (s *Server) handleSuggestFix(w http.ResponseWriter, r *http.Request, owner, repo string) {
-	var req api.FixSuggestionRequest
+	var req struct {
+		IssueNumber int    `json:"issue_number"`
+		Context     string `json:"context"` // Optional context or code snippet
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	req.Owner = owner
-	req.Repo = repo
-	if err := s.apiClient.SuggestFix(req); err != nil {
+
+	// Fetch issue details
+	issue, err := s.apiClient.GetIssue(owner, repo, req.IssueNumber)
+	if err != nil {
+		s.log(fmt.Sprintf("Warning: failed to fetch issue #%d: %v", req.IssueNumber, err))
+	}
+
+	prompt := fmt.Sprintf("I need a fix for issue #%d in %s/%s.\n", req.IssueNumber, owner, repo)
+	if issue != nil {
+		prompt += fmt.Sprintf("Issue Title: %s\nIssue Body: %s\n", issue.Title, issue.Body)
+	}
+	if req.Context != "" {
+		prompt += fmt.Sprintf("\nContext:\n%s\n", req.Context)
+	}
+	prompt += "\nPlease suggest a fix or implementation plan."
+
+	// Use local Ollama
+	resp, err := s.ollama.Chat(r.Context(), ollama.ChatRequest{
+		Model: "codellama:7b", // Default or configurable
+		Messages: []ollama.Message{
+			{Role: "user", Content: prompt},
+		},
+		Stream: false,
+	})
+	if err != nil {
+		http.Error(w, fmt.Sprintf("ollama error: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"suggestion": resp.Content,
+	})
+}
+
+func (s *Server) handleGetIssue(w http.ResponseWriter, r *http.Request, owner, repo string, number int) {
+	issue, err := s.apiClient.GetIssue(owner, repo, number)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(issue)
+}
+
+func (s *Server) handleGetPullRequest(w http.ResponseWriter, r *http.Request, owner, repo string, number int) {
+	pull, err := s.apiClient.GetPullRequest(owner, repo, number)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(pull)
 }
 
 func (s *Server) log(msg string) {
@@ -577,6 +746,76 @@ func (s *Server) log(msg string) {
 }
 
 // scanPRDs is a helper logic from main
+func (s *Server) handleStoryDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		PRDName string `json:"prd_name"`
+		StoryID string `json:"story_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.PRDName == "" || req.StoryID == "" {
+		http.Error(w, "prd_name and story_id required", http.StatusBadRequest)
+		return
+	}
+
+	// 1. Remove from database
+	if s.store != nil {
+		projectID, err := s.store.GetProjectID(req.PRDName)
+		if err == nil {
+			if err := s.store.DeleteStory(projectID, req.StoryID); err != nil {
+				s.log(fmt.Sprintf("Warning: failed to delete story %s from DB: %v", req.StoryID, err))
+			}
+		}
+	}
+
+	// 2. Remove from prd.json file
+	path := filepath.Join(s.baseDir, ".chief", "prds", req.PRDName, "prd.json")
+	p, err := prd.LoadPRD(path)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to load PRD: %v", err), http.StatusNotFound)
+		return
+	}
+
+	newStories := make([]prd.UserStory, 0)
+	found := false
+	for _, story := range p.UserStories {
+		if story.ID != req.StoryID {
+			newStories = append(newStories, story)
+		} else {
+			found = true
+		}
+	}
+
+	if !found {
+		http.Error(w, "story not found in PRD file", http.StatusNotFound)
+		return
+	}
+
+	p.UserStories = newStories
+	normalizedContent, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to marshal PRD: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.WriteFile(path, append(normalizedContent, '\n'), 0644); err != nil {
+		http.Error(w, fmt.Sprintf("failed to write PRD file: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.log(fmt.Sprintf("Story %s removed from PRD %s", req.StoryID, req.PRDName))
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Story %s removed", req.StoryID)
+}
+
 func scanPRDs(root string) ([]string, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -596,4 +835,144 @@ func scanPRDs(root string) ([]string, error) {
 		}
 	}
 	return names, nil
+}
+
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		cfg, _ := config.Load(s.baseDir)
+		json.NewEncoder(w).Encode(cfg)
+		return
+	}
+	if r.Method == http.MethodPost {
+		var cfg config.Config
+		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		config.Save(s.baseDir, &cfg)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+func (s *Server) handleGitDiff(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		http.Error(w, "name required", http.StatusBadRequest)
+		return
+	}
+	worktreeDir := git.WorktreePathForPRD(s.baseDir, name)
+	if _, err := os.Stat(worktreeDir); os.IsNotExist(err) {
+		worktreeDir = s.baseDir
+	}
+	diff, err := git.GetDiff(worktreeDir)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"diff": diff})
+}
+
+func (s *Server) handleGitPush(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name string `json:"name"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	worktreeDir := git.WorktreePathForPRD(s.baseDir, req.Name)
+	// Get current branch to push
+	branch, err := git.GetCurrentBranch(worktreeDir)
+	if err != nil {
+		http.Error(w, "Could not determine current branch: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := git.PushBranch(worktreeDir, branch); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleGitPR(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name string `json:"name"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, title, desc, repoURL, err := s.store.GetProject(req.Name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	owner, repo, err := git.ParseGithubURL(repoURL)
+	if err != nil {
+		http.Error(w, "Invalid repo URL", http.StatusBadRequest)
+		return
+	}
+
+	worktreeDir := git.WorktreePathForPRD(s.baseDir, req.Name)
+	branch, err := git.GetCurrentBranch(worktreeDir)
+	if err != nil {
+		http.Error(w, "Failed to get current branch", http.StatusInternalServerError)
+		return
+	}
+
+	prReq := api.PullRequestRequest{
+		Title: fmt.Sprintf("feat(%s): %s", req.Name, title),
+		Body:  desc,
+		Head:  branch,
+		Base:  "main",
+	}
+
+	pr, err := s.apiClient.CreatePullRequest(owner, repo, prReq)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(pr)
+}
+
+func (s *Server) handleGitMerge(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name string `json:"name"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	worktreeDir := git.WorktreePathForPRD(s.baseDir, req.Name)
+	branch, err := git.GetCurrentBranch(worktreeDir)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	conflicts, err := git.MergeBranch(s.baseDir, branch)
+	if err != nil {
+		if len(conflicts) > 0 {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":     err.Error(),
+				"conflicts": conflicts,
+			})
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleGitClean(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Name string `json:"name"` }
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	worktreeDir := git.WorktreePathForPRD(s.baseDir, req.Name)
+	if err := git.RemoveWorktree(s.baseDir, worktreeDir); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

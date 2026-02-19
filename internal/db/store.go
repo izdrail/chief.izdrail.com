@@ -133,6 +133,11 @@ func (s *Store) SaveStory(projectID int64, story StoryDB) error {
 	return err
 }
 
+func (s *Store) DeleteStory(projectID int64, storyID string) error {
+	_, err := s.db.Exec("DELETE FROM user_stories WHERE project_id = ? AND id = ?", projectID, storyID)
+	return err
+}
+
 func (s *Store) GetStories(projectID int64) ([]StoryDB, error) {
 	rows, err := s.db.Query("SELECT id, title, description, acceptance_criteria, priority, passes, in_progress FROM user_stories WHERE project_id = ? ORDER BY priority ASC", projectID)
 	if err != nil {

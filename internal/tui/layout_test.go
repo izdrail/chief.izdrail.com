@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/minicodemonkey/chief/internal/loop"
+	"github.com/izdrail/chief/internal/loop"
 )
 
 func TestIsNarrowMode(t *testing.T) {

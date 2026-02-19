@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minicodemonkey/chief/embed"
-	"github.com/minicodemonkey/chief/internal/config"
-	"github.com/minicodemonkey/chief/internal/db"
-	"github.com/minicodemonkey/chief/internal/prd"
+	"github.com/izdrail/chief/embed"
+	"github.com/izdrail/chief/internal/config"
+	"github.com/izdrail/chief/internal/db"
+	"github.com/izdrail/chief/internal/prd"
 )
 
 // LoopState represents the state of a loop instance.
@@ -131,6 +131,12 @@ func (m *Manager) SetStore(s *db.Store) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.store = s
+}
+
+func (m *Manager) GetStore() *db.Store {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.store
 }
 
 // Config returns the current project config.

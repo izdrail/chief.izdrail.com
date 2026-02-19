@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/minicodemonkey/chief/embed"
-	"github.com/minicodemonkey/chief/internal/agent"
-	"github.com/minicodemonkey/chief/internal/db"
-	"github.com/minicodemonkey/chief/internal/git"
-	"github.com/minicodemonkey/chief/internal/ollama"
-	"github.com/minicodemonkey/chief/internal/prd"
+	"github.com/izdrail/chief/embed"
+	"github.com/izdrail/chief/internal/agent"
+	"github.com/izdrail/chief/internal/db"
+	"github.com/izdrail/chief/internal/git"
+	"github.com/izdrail/chief/internal/ollama"
+	"github.com/izdrail/chief/internal/prd"
 )
 
 // RetryConfig configures automatic retry behavior on Ollama errors.

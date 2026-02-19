@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/minicodemonkey/chief/internal/loop"
+	"github.com/izdrail/chief/internal/loop"
 )
 
 func TestRenderEntryWithBranchAndWorktree(t *testing.T) {

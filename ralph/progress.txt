@@ -18,7 +18,7 @@
 
 ## 2026-01-25 - US-001
 - What was implemented:
-  - Initialized Go module at github.com/minicodemonkey/chief
+  - Initialized Go module at github.com/izdrail/chief
   - Added Bubble Tea, Lip Gloss, and Bubbles dependencies
   - Created directory structure: cmd/chief/, internal/loop/, internal/prd/, internal/tui/, internal/notify/, embed/
   - Created minimal main.go with Hello World Bubble Tea app
@@ -592,7 +592,7 @@
   - Used on_macos/on_linux and on_intel/on_arm blocks for platform-specific binary downloads
   - Added description and homepage to formula
   - Updated .goreleaser.yaml with brews section for automatic formula generation on release
-  - Configured goreleaser to push formula to minicodemonkey/homebrew-chief tap repository
+  - Configured goreleaser to push formula to izdrail/homebrew-chief tap repository
   - Formula includes test block that verifies --version output
 - Files changed:
   - Formula/chief.rb (new)
@@ -652,7 +652,7 @@
     - ADR-0005: Watch PRD File for Changes (fsnotify)
     - ADR-0006: Audio Completion Notifications (oto/v2)
   - Added package-level doc comments to all packages (embed, tui, loop, prd, cmd, notify)
-  - Fixed go.mod module name from 'chief' to 'github.com/minicodemonkey/chief'
+  - Fixed go.mod module name from 'chief' to 'github.com/izdrail/chief'
 - Files changed:
   - README.md (new)
   - docs/adr/README.md (new)

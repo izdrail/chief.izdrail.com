@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/minicodemonkey/chief/internal/ollama"
-	"github.com/minicodemonkey/chief/internal/tools"
+	"github.com/izdrail/chief/internal/ollama"
+	"github.com/izdrail/chief/internal/tools"
 )
 
 // AgentOptions configures the agent's behavior.

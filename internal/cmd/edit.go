@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/minicodemonkey/chief/embed"
+	"github.com/izdrail/chief/embed"
 )
 
 // EditOptions contains configuration for the edit command.

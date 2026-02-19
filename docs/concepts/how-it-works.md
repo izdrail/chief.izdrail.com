@@ -7,7 +7,7 @@ description: Learn how Chief works as an autonomous coding agent, transforming y
 Chief is an autonomous coding agent that transforms your requirements into working code, without constant back-and-forth prompting.
 
 ::: tip Background
-For the motivation behind Chief and a deeper exploration of autonomous coding agents, read the blog post: [Introducing Chief: Autonomous PRD Agent](https://minicodemonkey.com/blog/2025/chief)
+For the motivation behind Chief and a deeper exploration of autonomous coding agents, read the blog post: [Introducing Chief: Autonomous PRD Agent](https://izdrail.com/blog/2025/chief)
 :::
 
 ## The Core Concept

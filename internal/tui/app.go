@@ -10,12 +10,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/minicodemonkey/chief/embed"
-	"github.com/minicodemonkey/chief/internal/config"
-	"github.com/minicodemonkey/chief/internal/git"
-	"github.com/minicodemonkey/chief/internal/loop"
-	"github.com/minicodemonkey/chief/internal/ollama"
-	"github.com/minicodemonkey/chief/internal/prd"
+	"github.com/izdrail/chief/embed"
+	"github.com/izdrail/chief/internal/config"
+	"github.com/izdrail/chief/internal/git"
+	"github.com/izdrail/chief/internal/loop"
+	"github.com/izdrail/chief/internal/ollama"
+	"github.com/izdrail/chief/internal/prd"
 )
 
 // PRDUpdateMsg is sent when the PRD file changes.
@@ -129,6 +129,14 @@ type LaunchInitMsg struct {
 // LaunchEditMsg signals the TUI should exit to launch the edit flow.
 type LaunchEditMsg struct {
 	Name string
+}
+
+// PRDCreationStatusMsg is sent during background PRD generation.
+type PRDCreationStatusMsg struct {
+	Name    string
+	Status  string
+	Message string
+	Error   string
 }
 
 // ViewMode represents which view is currently active.
@@ -443,6 +451,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.PostExitPRD = msg.Name
 		return a, tea.Quit
 
+	case PRDCreationStatusMsg:
+		a.picker.SetCreationTask(&CreationStatus{
+			PRDName: msg.Name,
+			Status:  msg.Status,
+			Message: msg.Message,
+			Error:   msg.Error,
+		})
+		return a, nil
+
 	case LaunchEditMsg:
 		a.PostExitAction = PostExitEdit
 		a.PostExitPRD = msg.Name
@@ -568,6 +585,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, func() tea.Msg {
 					return LaunchEditMsg{Name: a.prdName}
 				}
+			}
+			return a, nil
+
+		// Delete selected story
+		case "D":
+			if a.viewMode == ViewDashboard {
+				return a.DeleteSelectedStory()
 			}
 			return a, nil
 
@@ -1272,6 +1296,62 @@ func (a *App) runAutoCreatePR() tea.Cmd {
 	}
 }
 
+// runBackgroundPRDCreation returns a tea.Cmd that handles PRD generation and conversion in the background.
+func (a *App) runBackgroundPRDCreation(name, description string) tea.Cmd {
+	return tea.Batch(
+		func() tea.Msg {
+			return PRDCreationStatusMsg{Name: name, Status: "generating", Message: "Initializing workspace..."}
+		},
+		func() tea.Msg {
+			return a.executePRDCreation(name, description)
+		},
+	)
+}
+
+func (a *App) executePRDCreation(name, description string) tea.Msg {
+	prdDir := filepath.Join(a.baseDir, ".chief", "prds", name)
+	
+	// Create directory
+	if err := os.MkdirAll(prdDir, 0755); err != nil {
+		return PRDCreationStatusMsg{Name: name, Status: "error", Message: "Failed to create directory", Error: err.Error()}
+	}
+
+	// Generate
+	ctx := context.Background()
+	stream, err := prd.GeneratePRDStream(ctx, prdDir, name, description)
+	if err != nil {
+		return PRDCreationStatusMsg{Name: name, Status: "error", Message: "Failed to start generation", Error: err.Error()}
+	}
+
+	// Drain stream (wait for complete)
+	for event := range stream {
+		if event.Error != nil {
+			return PRDCreationStatusMsg{Name: name, Status: "error", Message: "Generation failed", Error: event.Error.Error()}
+		}
+	}
+
+	// Convert
+	absPRDDir, _ := filepath.Abs(prdDir)
+	convertStream := prd.ConvertStream(ctx, absPRDDir)
+	for event := range convertStream {
+		if event.Error != nil {
+			return PRDCreationStatusMsg{Name: name, Status: "error", Message: "Conversion failed", Error: event.Error.Error()}
+		}
+	}
+
+	// Finalize conversion (the Convert call in generator.go does validation and progress protection)
+	opts := prd.ConvertOptions{
+		PRDDir: prdDir,
+		Merge:  false,
+		Force:  true,
+	}
+	if err := prd.Convert(opts); err != nil {
+		return PRDCreationStatusMsg{Name: name, Status: "error", Message: "Finalization failed", Error: err.Error()}
+	}
+
+	return PRDCreationStatusMsg{Name: name, Status: "complete", Message: "PRD created successfully"}
+}
+
 // renderCompletionView renders the completion screen.
 func (a *App) renderCompletionView() string {
 	a.completionScreen.SetSize(a.width, a.height)
@@ -1705,20 +1785,21 @@ func (a App) handlePickerKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if a.picker.IsInputMode() {
 		switch msg.String() {
 		case "esc":
-			a.picker.CancelInputMode()
+			if a.picker.PreviousInputStep() {
+				// Cancelled (was on first step)
+				return a, nil
+			}
 			return a, nil
 		case "enter":
-			name := a.picker.GetInputValue()
-			if name != "" {
-				// Launch interactive Claude session to create the PRD
+			if a.picker.NextInputStep() {
+				// Finished all steps - start background generation
+				name := a.picker.GetInputValue()
+				description := a.picker.GetInputDescription()
 				a.picker.CancelInputMode()
-				a.stopAllLoops()
-				a.stopWatcher()
-				return a, func() tea.Msg {
-					return LaunchInitMsg{Name: name}
-				}
+				
+				// Trigger background generation
+				return a, a.runBackgroundPRDCreation(name, description)
 			}
-			a.picker.CancelInputMode()
 			return a, nil
 		case "backspace":
 			a.picker.DeleteInputChar()
@@ -1966,6 +2047,45 @@ func (a *App) GetSelectedStory() *prd.UserStory {
 // GetState returns the current app state.
 func (a *App) GetState() AppState {
 	return a.state
+}
+
+// DeleteSelectedStory removes the currently selected story from the PRD and database.
+func (a *App) DeleteSelectedStory() (tea.Model, tea.Cmd) {
+	if a.selectedIndex < 0 || a.selectedIndex >= len(a.prd.UserStories) {
+		return a, nil
+	}
+
+	story := a.prd.UserStories[a.selectedIndex]
+	
+	// 1. Remove from database
+	if store := a.manager.GetStore(); store != nil {
+		id, err := store.GetProjectID(a.prdName)
+		if err == nil {
+			if err := store.DeleteStory(id, story.ID); err != nil {
+				a.lastActivity = fmt.Sprintf("Warning: failed to delete story from DB: %v", err)
+			}
+		}
+	}
+
+	// 2. Remove from slice
+	a.prd.UserStories = append(a.prd.UserStories[:a.selectedIndex], a.prd.UserStories[a.selectedIndex+1:]...)
+
+	// 3. Save to file
+	if err := a.prd.Save(a.prdPath); err != nil {
+		a.lastActivity = "Error saving PRD: " + err.Error()
+		return a, nil
+	}
+
+	// Adjust selection
+	if a.selectedIndex >= len(a.prd.UserStories) {
+		a.selectedIndex = len(a.prd.UserStories) - 1
+		if a.selectedIndex < 0 {
+			a.selectedIndex = 0
+		}
+	}
+
+	a.lastActivity = "Deleted story: " + story.ID
+	return a, nil
 }
 
 // GetIteration returns the current iteration count.

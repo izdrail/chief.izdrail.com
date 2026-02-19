@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/minicodemonkey/chief/embed"
-	"github.com/minicodemonkey/chief/internal/agent"
-	"github.com/minicodemonkey/chief/internal/ollama"
+	"github.com/izdrail/chief/embed"
+	"github.com/izdrail/chief/internal/agent"
+	"github.com/izdrail/chief/internal/ollama"
 )
 
 // spinner frames for the loading indicator
@@ -137,11 +137,11 @@ func Convert(opts ConvertOptions) error {
 	return nil
 }
 
-// GeneratePRD generates a full prd.md from a name and description using Ollama.
-func GeneratePRD(prdDir, name, description string) error {
+// GeneratePRDStream returns a stream of events for generating a PRD specification.
+func GeneratePRDStream(ctx context.Context, prdDir, name, description string) (<-chan agent.AgentEvent, error) {
 	absPRDDir, err := filepath.Abs(prdDir)
 	if err != nil {
-		return fmt.Errorf("failed to resolve absolute path: %w", err)
+		return nil, fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
 	prompt := embed.GetGeneratePRDPrompt(absPRDDir, name, description)
@@ -156,14 +156,20 @@ func GeneratePRD(prdDir, name, description string) error {
 		MaxToolRounds: 10,
 	}
 
-	ctx := context.Background()
-	stream := agent.RunAgent(ctx, client, messages, agentOpts)
+	return agent.RunAgent(ctx, client, messages, agentOpts), nil
+}
 
+// GeneratePRD generates a full prd.md from a name and description using Ollama.
+func GeneratePRD(prdDir, name, description string) error {
+	stream, err := GeneratePRDStream(context.Background(), prdDir, name, description)
+	if err != nil {
+		return err
+	}
 	return waitWithProgressOllama(stream, "Generating specification from description...")
 }
 
-// runOllamaConversion runs Ollama one-shot to convert prd.md and write prd.json.
-func runOllamaConversion(absPRDDir string) error {
+// ConvertStream returns a stream of events for converting prd.md to prd.json.
+func ConvertStream(ctx context.Context, absPRDDir string) <-chan agent.AgentEvent {
 	prompt := embed.GetConvertPrompt(absPRDDir)
 	client := ollama.NewClient()
 
@@ -176,9 +182,13 @@ func runOllamaConversion(absPRDDir string) error {
 		MaxToolRounds: 20,
 	}
 
-	ctx := context.Background()
-	stream := agent.RunAgent(ctx, client, messages, agentOpts)
+	return agent.RunAgent(ctx, client, messages, agentOpts)
+}
 
+// runOllamaConversion runs Ollama one-shot to convert prd.md and write prd.json.
+func runOllamaConversion(absPRDDir string) error {
+	ctx := context.Background()
+	stream := ConvertStream(ctx, absPRDDir)
 	return waitWithProgressOllama(stream, "Converting prd.md to prd.json...")
 }
 

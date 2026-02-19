@@ -1,8 +1,6 @@
-module github.com/minicodemonkey/chief
+module github.com/izdrail/chief
 
-go 1.24.0
-
-toolchain go1.24.13
+go 1.24
 
 require (
 	github.com/alecthomas/chroma/v2 v2.10.0

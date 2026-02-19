@@ -2,6 +2,7 @@
 package git
 
 import (
+	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -164,4 +165,43 @@ func InitRepo(dir string) error {
 	cmd := exec.Command("git", "init")
 	cmd.Dir = dir
 	return cmd.Run()
+}
+// GetRemoteURL returns the URL of the given remote for the repository.
+func GetRemoteURL(dir, remote string) (string, error) {
+	cmd := exec.Command("git", "remote", "get-url", remote)
+	cmd.Dir = dir
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// ParseGithubURL extracts the owner and repo name from a GitHub URL.
+// Supports both HTTPS (https://github.com/owner/repo.git) and
+// SSH (git@github.com:owner/repo.git) formats.
+func ParseGithubURL(rawURL string) (owner, repo string, err error) {
+	rawURL = strings.TrimSuffix(rawURL, ".git")
+
+	// SSH: git@github.com:owner/repo
+	if strings.HasPrefix(rawURL, "git@") {
+		// git@github.com:owner/repo
+		parts := strings.SplitN(rawURL, ":", 2)
+		if len(parts) == 2 {
+			ownerRepo := strings.SplitN(parts[1], "/", 2)
+			if len(ownerRepo) == 2 {
+				return ownerRepo[0], ownerRepo[1], nil
+			}
+		}
+		return "", "", fmt.Errorf("invalid SSH GitHub URL: %s", rawURL)
+	}
+
+	// HTTPS: https://github.com/owner/repo
+	trimmed := strings.TrimPrefix(rawURL, "https://")
+	trimmed = strings.TrimPrefix(trimmed, "http://")
+	parts := strings.SplitN(trimmed, "/", 3)
+	if len(parts) >= 3 {
+		return parts[1], parts[2], nil
+	}
+	return "", "", fmt.Errorf("invalid GitHub URL: %s", rawURL)
 }

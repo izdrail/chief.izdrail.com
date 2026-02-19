@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/minicodemonkey/chief/internal/server"
+	"github.com/izdrail/chief/internal/server"
 )
 
 // ServeOptions contains configuration for the serve command.
@@ -22,6 +22,6 @@ func RunServe(opts ServeOptions) error {
 		opts.BaseDir, _ = os.Getwd()
 	}
 
-	srv := server.NewServer(opts.Addr, opts.BaseDir, "https://git.izdrail.com", opts.GitToken)
+	srv := server.NewServer(opts.Addr, opts.BaseDir, opts.GitToken)
 	return srv.Start()
 }

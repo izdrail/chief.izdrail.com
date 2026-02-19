@@ -9,10 +9,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/minicodemonkey/chief/embed"
-	"github.com/minicodemonkey/chief/internal/agent"
-	"github.com/minicodemonkey/chief/internal/ollama"
-	"github.com/minicodemonkey/chief/internal/prd"
+	"github.com/izdrail/chief/embed"
+	"github.com/izdrail/chief/internal/agent"
+	"github.com/izdrail/chief/internal/ollama"
+	"github.com/izdrail/chief/internal/prd"
 )
 
 // NewOptions contains configuration for the new command.

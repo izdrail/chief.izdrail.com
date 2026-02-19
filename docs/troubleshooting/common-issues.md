@@ -251,7 +251,7 @@ Chief automatically prunes git's internal worktree tracking on startup, but does
 If none of these solutions help:
 
 1. Check the [FAQ](/troubleshooting/faq)
-2. Search [GitHub Issues](https://github.com/minicodemonkey/chief/issues)
+2. Search [GitHub Issues](https://github.com/izdrail/chief/issues)
 3. Open a new issue with:
    - Chief version (`chief --version`)
    - Your `prd.json` (sanitized)

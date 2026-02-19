@@ -7,7 +7,7 @@
       "title": "Go Project Setup with Bubble Tea",
       "description": "As a developer, I need a properly structured Go project with Bubble Tea so that I have a foundation for building the TUI.",
       "acceptanceCriteria": [
-        "Initialize Go module at github.com/minicodemonkey/chief",
+        "Initialize Go module at github.com/izdrail/chief",
         "Add Bubble Tea, Lip Gloss, and Bubbles dependencies",
         "Create directory structure: cmd/chief/, internal/loop/, internal/prd/, internal/tui/, internal/notify/, embed/",
         "Create minimal main.go that launches a 'Hello World' Bubble Tea app",
@@ -397,12 +397,12 @@
       "title": "Install Script",
       "description": "As a user without Homebrew, I want a simple install script so that I can install Chief easily.",
       "acceptanceCriteria": [
-        "Create install.sh script hosted at raw.githubusercontent.com/MiniCodeMonkey/chief/refs/heads/main/install.sh",
+        "Create install.sh script hosted at raw.githubusercontent.com/izdrail/chief/refs/heads/main/install.sh",
         "Script detects OS (darwin/linux) and architecture (amd64/arm64)",
         "Downloads correct binary from GitHub releases",
         "Installs to /usr/local/bin (or ~/.local/bin if no sudo)",
         "Verifies checksum before installing",
-        "curl -fsSL https://raw.githubusercontent.com/MiniCodeMonkey/chief/refs/heads/main/install.sh | sh works",
+        "curl -fsSL https://raw.githubusercontent.com/izdrail/chief/refs/heads/main/install.sh | sh works",
         "Script is idempotent (can run multiple times safely)"
       ],
       "priority": 25,

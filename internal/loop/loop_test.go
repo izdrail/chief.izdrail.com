@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/minicodemonkey/chief/internal/prd"
+	"github.com/izdrail/chief/internal/prd"
 )
 
 // createMockClaudeScript creates a shell script that outputs predefined stream-json.

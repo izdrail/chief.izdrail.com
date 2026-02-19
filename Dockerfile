@@ -17,12 +17,12 @@ COPY . .
 
 # Build the application
 # We disable CGO for a static binary (no ALSA dependency)
-RUN CGO_ENABLED=0 go build -o chief ./cmd/chief
+RUN go mod tidy && CGO_ENABLED=0 go build -o chief ./cmd/chief
 
 # Final stage
 FROM alpine:latest
 
-RUN apk add --no-cache ca-certificates git
+RUN apk add --no-cache ca-certificates git bash grep findutils coreutils
 
 WORKDIR /app
 
