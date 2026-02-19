@@ -1,25 +1,8 @@
 # Chief
 
-Build big projects with Ollama. Chief breaks your work into tasks and runs an agent loop until they're done.
-
-**[Documentation](https://minicodemonkey.github.io/chief/)** · **[Quick Start](https://minicodemonkey.github.io/chief/guide/quick-start)**
-
-![Chief TUI](https://minicodemonkey.github.io/chief/images/tui-screenshot.png)
-
-## Install
-
-```bash
-brew install minicodemonkey/chief/chief
-```
-
-Or via install script:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/MiniCodeMonkey/chief/refs/heads/main/install.sh | sh
-```
+Build big projects with AI. Chief breaks your work into tasks and runs an agent loop until they're done.
 
 ## Usage
-
 ```bash
 # Create a new project
 chief new
@@ -28,7 +11,14 @@ chief new
 chief
 ```
 
-Chief runs an Ollama-powered agent in a [Ralph Wiggum loop](https://ghuntley.com/ralph/): each iteration starts with a fresh context window, but progress is persisted between runs. This lets the agent work through large projects without hitting context limits.
+Chief runs an AI-powered agent in a [Ralph Wiggum loop](https://ghuntley.com/ralph/): each iteration starts with a fresh context window, but progress is persisted between runs. This lets the agent work through large projects without hitting context limits. One commit per task keeps your git history clean and easy to review.
+
+## Backends
+
+| Backend | Setup |
+|--------|-------|
+| **Docker** | `docker run ...` — batteries included, no extra install |
+| **Ollama** | [ollama.com](https://ollama.com/) running locally with a tool-supporting model (e.g. `qwen2.5-coder:32b`) |
 
 ## How It Works
 
@@ -36,19 +26,4 @@ Chief runs an Ollama-powered agent in a [Ralph Wiggum loop](https://ghuntley.com
 2. **Chief runs an agent loop**, one task at a time
 3. **One commit per task** — clean git history, easy to review
 
-See the [documentation](https://minicodemonkey.github.io/chief/concepts/how-it-works) for details.
-
-## Requirements
-
-- [Ollama](https://ollama.com/) running locally with a tool-supporting model (e.g., `qwen2.5-coder:32b`)
-
-## License
-
-MIT
-
-## Acknowledgments
-
-- [snarktank/ralph](https://github.com/snarktank/ralph) — The original Ralph implementation that inspired this project
-- [Geoffrey Huntley](https://ghuntley.com/ralph/) — For coining the "Ralph Wiggum loop" pattern
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI framework
-- [Lip Gloss](https://github.com/charmbracelet/lipgloss) — Terminal styling
+## License CC04
