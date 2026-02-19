@@ -3,6 +3,8 @@ version: '3.8'
 services:
   chief:
     build: .
+    image: izdrail/chief.izdrail.com:latest
+    container_name: chief.izdrail.com
     ports:
       - "1248:1248"
     volumes:
