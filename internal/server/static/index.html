@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chief | AI Product Engineering</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0e14;
+            --sidebar-bg: #12151c;
+            --card-bg: rgba(25, 30, 45, 0.7);
+            --fg: #dcdfe4;
+            --fg-dim: #9ba1b0;
+            --accent: #7aa2f7;
+            --accent-glow: rgba(122, 162, 247, 0.4);
+            --success: #9ece6a;
+            --error: #f7768e;
+            --warning: #e0af68;
+            --purple: #bb9af7;
+            --cyan: #7dcfff;
+            --border: rgba(65, 72, 104, 0.4);
+            --radius: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --glass: blur(12px) saturate(180%);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(122, 162, 247, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(187, 154, 247, 0.1) 0px, transparent 50%);
+            color: var(--fg);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Styles */
+        aside {
+            width: 340px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 32px 24px;
+            overflow-y: auto;
+            backdrop-filter: var(--glass);
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 40px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 24px;
+            box-shadow: 0 0 25px var(--accent-glow);
+        }
+
+        .logo-text {
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            color: white;
+            background: linear-gradient(to right, #fff, #a9b1d6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .section-title {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--fg-dim);
+            margin-bottom: 16px;
+            margin-top: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .add-btn {
+            background: var(--border);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .add-btn:hover {
+            background: var(--accent);
+            transform: scale(1.1);
+        }
+
+        .prd-item {
+            padding: 14px 18px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid transparent;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .prd-item:hover {
+            background: rgba(122, 162, 247, 0.08);
+            border-color: rgba(122, 162, 247, 0.2);
+            transform: translateX(4px);
+        }
+
+        .prd-item.active {
+            background: linear-gradient(135deg, rgba(122, 162, 247, 0.15), rgba(187, 154, 247, 0.1));
+            border-color: var(--accent);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .prd-name {
+            font-weight: 600;
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 24px 40px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(11, 14, 20, 0.5);
+            backdrop-filter: blur(10px);
+        }
+
+        .status-pill {
+            padding: 8px 20px;
+            border-radius: 100px;
+            font-size: 14px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(65, 72, 104, 0.3);
+            border: 1px solid var(--border);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-Running {
+            color: var(--success);
+            border-color: rgba(158, 206, 106, 0.4);
+            background: rgba(158, 206, 106, 0.1);
+        }
+
+        .status-Stopped {
+            color: var(--fg-dim);
+        }
+
+        .status-Error {
+            color: var(--error);
+            border-color: rgba(247, 118, 142, 0.4);
+            background: rgba(247, 118, 142, 0.1);
+        }
+
+        .content-area {
+            flex: 1;
+            padding: 40px;
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 32px;
+            overflow: hidden;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            backdrop-filter: var(--glass);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: white;
+            letter-spacing: 0.5px;
+        }
+
+        .log-window {
+            flex: 1;
+            background: #080a0f;
+            color: #d4d4d4;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 24px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .log-line {
+            margin-bottom: 6px;
+            border-left: 3px solid transparent;
+            padding-left: 12px;
+        }
+
+        .log-line.tool {
+            border-left-color: var(--cyan);
+            color: var(--cyan);
+            background: rgba(125, 207, 255, 0.05);
+            padding: 6px 12px;
+            border-radius: 0 6px 6px 0;
+            font-weight: 500;
+        }
+
+        .log-line.error {
+            border-left-color: var(--error);
+            color: var(--error);
+        }
+
+        .prd-viewer {
+            padding: 32px;
+            overflow-y: auto;
+        }
+
+        .story-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: var(--transition);
+        }
+
+        .story-card:hover {
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .story-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .story-id {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--accent);
+            text-transform: uppercase;
+        }
+
+        .story-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            margin: 4px 0;
+        }
+
+        .story-status {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 100px;
+            font-weight: 700;
+        }
+
+        .status-done {
+            background: rgba(158, 206, 106, 0.2);
+            color: var(--success);
+        }
+
+        .status-todo {
+            background: rgba(65, 72, 104, 0.3);
+            color: var(--fg-dim);
+        }
+
+        /* Controls */
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        button {
+            padding: 10px 24px;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+            border: 1px solid transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        button.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--accent-glow);
+            filter: brightness(1.1);
+        }
+
+        button.secondary {
+            background: var(--border);
+            color: var(--fg);
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        button.secondary:hover {
+            background: rgba(65, 72, 104, 0.8);
+            transform: translateY(-1px);
+        }
+
+        input,
+        textarea,
+        select {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: white;
+            width: 100%;
+            margin-bottom: 16px;
+            font-family: inherit;
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        select option {
+            background: var(--sidebar-bg);
+            color: white;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-glow);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: var(--sidebar-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            width: 500px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 6px;
+            margin-bottom: 24px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--fg-dim);
+            transition: var(--transition);
+        }
+
+        .tab.active {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+    </style>
+</head>
+
+<body>
+    <aside>
+        <div class="logo-area">
+            <div class="logo-icon">C</div>
+            <div class="logo-text">Chief</div>
+        </div>
+
+        <div class="section-title">
+            Product Documents
+            <button class="add-btn" onclick="openModal()">+</button>
+        </div>
+        <div id="prd-list">
+            <div style="padding: 12px; font-size: 13px; color: var(--fg-dim);">Loading workspace...</div>
+        </div>
+
+        <div class="section-title">Operations</div>
+        <div class="card" style="padding: 24px; background: rgba(0,0,0,0.2);">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('pr')">PR</div>
+                <div class="tab" onclick="switchTab('issue')">ISSUE</div>
+                <div class="tab" onclick="switchTab('fix')">FIX</div>
+            </div>
+
+            <div id="tab-pr" class="tab-content">
+                <form onsubmit="createPR(event)">
+                    <select name="repo_full_name" class="repo-select" required
+                        onchange="updateRepoFields(this); loadPulls(this.form)">
+                        <option value="">Select Repository...</option>
+                    </select>
+                    <input type="hidden" name="owner">
+                    <input type="hidden" name="repo">
+                    <input name="branch_name" placeholder="Branch Name" required>
+                    <input name="title" placeholder="PR Title" required>
+                    <textarea name="body" rows="2" placeholder="Implementation details..."></textarea>
+                    <button type="submit" class="primary" style="width: 100%;">Create PR</button>
+                    <div id="pr-list-container"
+                        style="margin-top: 16px; font-size: 12px; max-height: 150px; overflow-y: auto; border-top: 1px solid var(--border); padding-top: 12px; display: none;">
+                        <div
+                            style="color: var(--fg-dim); font-weight: 800; text-transform: uppercase; margin-bottom: 8px;">
+                            Active PRs</div>
+                        <div id="repo-prs"></div>
+                    </div>
+                </form>
+            </div>
+
+            <div id="tab-issue" class="tab-content" style="display: none;">
+                <form onsubmit="createIssue(event)">
+                    <select name="repo_full_name" class="repo-select" required onchange="updateRepoFields(this)">
+                        <option value="">Select Repository...</option>
+                    </select>
+                    <input type="hidden" name="owner">
+                    <input type="hidden" name="repo">
+                    <input name="title" placeholder="Issue Title" required>
+                    <textarea name="body" rows="3" placeholder="Describe requirements..."></textarea>
+                    <button type="submit" class="primary" style="width: 100%;">Open Issue</button>
+                </form>
+            </div>
+
+            <div id="tab-fix" class="tab-content" style="display: none;">
+                <form onsubmit="suggestFix(event)">
+                    <select name="repo_full_name" class="repo-select" required
+                        onchange="updateRepoFields(this); loadIssues(this.form)">
+                        <option value="">Select Repository...</option>
+                    </select>
+                    <input type="hidden" name="owner">
+                    <input type="hidden" name="repo">
+                    <select name="issue_number" class="issue-select" required>
+                        <option value="">Select Issue...</option>
+                    </select>
+                    <button type="submit" class="primary" style="width: 100%;">Suggest Fix</button>
+                </form>
+            </div>
+        </div>
+    </aside>
+
+    <main>
+        <header>
+            <div>
+                <h2 id="active-prd-title" style="margin: 0; font-size: 24px; font-weight: 800; color: white;">Welcome to
+                    Chief</h2>
+                <div id="connection-status"
+                    style="font-size: 13px; color: var(--fg-dim); margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+                    <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success);"></span>
+                    Workspace Connected
+                </div>
+            </div>
+            <div class="btn-group">
+                <div id="agent-status" class="status-pill status-Stopped">IDLE</div>
+                <button id="btn-start" class="primary" onclick="startAgent()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Activate Agent
+                </button>
+                <button id="btn-stop" class="secondary" onclick="stopAgent()" disabled>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="6" width="12" height="12"></rect>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="content-area">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Engineering Logs</div>
+                    <div id="iter-count"
+                        style="font-size: 11px; color: var(--fg-dim); font-weight: 800; text-transform: uppercase; background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 6px;">
+                        Ready</div>
+                </div>
+                <div class="log-window" id="log-window">
+                    <div style="color: var(--fg-dim); text-align: center; margin-top: 100px; font-style: italic;">Select
+                        a PRD and activate the agent to see live logs.</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Requirements Specification</div>
+                </div>
+                <div class="prd-viewer" id="prd-content">
+                    <div style="text-align: center; margin-top: 100px; color: var(--fg-dim);">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+                            style="opacity: 0.2; margin-bottom: 20px;">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                        <p>Select a product to view specifications</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Project Creation Modal -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h3 style="margin-top: 0; font-size: 24px;">Initialize New PRD</h3>
+            <p style="color: var(--fg-dim); margin-bottom: 30px;">Describe your feature or product, and Chief will
+                generate a full specification.</p>
+            <form onsubmit="submitNewPRD(event)">
+                <label
+                    style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim); display: block; margin-bottom: 8px;">Target
+                    Repository (Optional)</label>
+                <select id="new-prd-repo" class="repo-select">
+                    <option value="">No repository (local only)</option>
+                </select>
+
+                <label
+                    style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim); display: block; margin-bottom: 8px;">Project
+                    Name (Slug)</label>
+                <input id="new-prd-name" placeholder="e.g. user-authentication" required>
+
+                <label
+                    style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim); display: block; margin-bottom: 8px;">Core
+                    Requirements</label>
+                <textarea id="new-prd-desc" rows="5"
+                    placeholder="What are we building? Include key features and constraints..." required></textarea>
+                <div style="display: flex; gap: 12px; margin-top: 20px;">
+                    <button type="submit" class="primary" style="flex: 1;">Generate PRD</button>
+                    <button type="button" class="secondary" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentPRD = '';
+        let logInterval = null;
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+            const selectedTab = [...document.querySelectorAll('.tab')].find(t => t.innerText.toLowerCase().includes(tabId));
+            if (selectedTab) selectedTab.classList.add('active');
+            document.getElementById(`tab-${tabId}`).style.display = 'block';
+        }
+
+        function openModal() { document.getElementById('modal-overlay').style.display = 'flex'; }
+        function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+        async function fetchPRDs() {
+            try {
+                const res = await fetch('/api/prd/list');
+                const prds = await res.json();
+                const list = document.getElementById('prd-list');
+                list.innerHTML = prds.length ? prds.map(p =>
+                    `<div class="prd-item ${p.name === currentPRD ? 'active' : ''}" data-name="${p.name}" onclick="selectPRD('${p.name}', '${p.title}')">
+                        <span class="prd-name">${p.title}</span>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <div class="prd-status-dot" style="width: 6px; height: 6px; background: var(--accent); border-radius: 50%;"></div>
+                            <button onclick="event.stopPropagation(); deletePRD('${p.name}', '${p.title}')" title="Delete PRD" style="background: none; border: none; color: var(--fg-dim); cursor: pointer; padding: 2px 4px; font-size: 14px; line-height: 1; border-radius: 4px; opacity: 0.4; transition: var(--transition);" onmouseover="this.style.opacity='1'; this.style.color='var(--error)'" onmouseout="this.style.opacity='0.4'; this.style.color='var(--fg-dim)'">&times;</button>
+                        </div>
+                    </div>`
+                ).join('') : '<div style="padding: 12px; font-size: 13px; color: var(--fg-dim);">Workspace empty. Click + to start.</div>';
+            } catch (e) { console.error(e); }
+        }
+
+        async function selectPRD(name, title) {
+            currentPRD = name;
+            document.getElementById('active-prd-title').innerText = title || name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            document.querySelectorAll('.prd-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.name === name);
+            });
+
+            try {
+                const res = await fetch(`/api/prd/get?name=${name}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    renderPRD(data);
+                }
+            } catch (e) { }
+
+            updateStatus();
+            startLogPolling();
+        }
+
+        function renderPRD(prd) {
+            const container = document.getElementById('prd-content');
+            let html = `<p style="color: var(--fg-dim); margin-bottom: 24px; font-size: 15px;">${prd.description || 'No description provided.'}</p>`;
+            html += `<h4 style="margin-bottom: 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--fg-dim);">User Stories</h4>`;
+
+            if (prd.userStories && prd.userStories.length) {
+                prd.userStories.forEach(s => {
+                    html += `
+                        <div class="story-card">
+                            <div class="story-header">
+                                <span class="story-id">${s.id}</span>
+                                <span class="story-status ${s.passes ? 'status-done' : 'status-todo'}">${s.passes ? 'COMPLETE' : 'PENDING'}</span>
+                            </div>
+                            <div class="story-title">${s.title}</div>
+                            <p style="font-size: 13px; color: var(--fg-dim); margin: 8px 0;">${s.description}</p>
+                            ${s.acceptanceCriteria ? `<ul style="margin: 12px 0 0 0; padding-left: 18px; font-size: 12px; color: var(--accent);">
+                                ${s.acceptanceCriteria.map(c => `<li>${c}</li>`).join('')}
+                            </ul>` : ''}
+                        </div>
+                    `;
+                });
+            } else {
+                html += '<p>No stories defined yet.</p>';
+            }
+            container.innerHTML = html;
+        }
+
+        async function submitNewPRD(e) {
+            e.preventDefault();
+            const name = document.getElementById('new-prd-name').value;
+            const description = document.getElementById('new-prd-desc').value;
+            const repoSelect = document.getElementById('new-prd-repo');
+            const repo_url = repoSelect.options[repoSelect.selectedIndex]?.dataset.cloneUrl || '';
+
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true; btn.innerText = 'Creating Workspace...';
+
+            try {
+                const res = await fetch('/api/prd/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, description, repo_url })
+                });
+                if (res.ok) {
+                    closeModal();
+                    await fetchPRDs();
+                    selectPRD(name);
+                } else {
+                    alert('Creation failed: ' + await res.text());
+                }
+            } catch (e) { alert('Server error'); }
+            finally { btn.disabled = false; btn.innerText = 'Generate PRD'; }
+        }
+
+        async function startAgent() {
+            if (!currentPRD) return;
+            document.getElementById('btn-start').disabled = true;
+            try {
+                await fetch('/api/agent/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentPRD })
+                });
+                updateStatus();
+            } catch (e) { }
+        }
+
+        async function stopAgent() {
+            if (!currentPRD) return;
+            document.getElementById('btn-stop').disabled = true;
+            try {
+                await fetch(`/api/agent/stop?name=${currentPRD}`);
+                updateStatus();
+            } catch (e) { }
+        }
+
+        async function deletePRD(name, title) {
+            if (!confirm(`Delete "${title || name}"?\n\nThis will stop any running agent, remove all PRD files, cloned repos, worktrees, and database records. This cannot be undone.`)) return;
+
+            try {
+                const res = await fetch('/api/prd/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (res.ok) {
+                    if (currentPRD === name) {
+                        currentPRD = '';
+                        document.getElementById('active-prd-title').innerText = 'Welcome to Chief';
+                        document.getElementById('prd-content').innerHTML = '<div style="text-align: center; margin-top: 100px; color: var(--fg-dim);"><p>Select a product to view specifications</p></div>';
+                        document.getElementById('log-window').innerHTML = '<div style="color: var(--fg-dim); text-align: center; margin-top: 100px; font-style: italic;">Select a PRD and activate the agent to see live logs.</div>';
+                        document.getElementById('agent-status').innerText = 'IDLE';
+                        document.getElementById('agent-status').className = 'status-pill status-Stopped';
+                    }
+                    await fetchPRDs();
+                } else {
+                    alert('Delete failed: ' + await res.text());
+                }
+            } catch (e) { alert('Server error'); }
+        }
+
+        async function updateStatus() {
+            if (!currentPRD) return;
+            try {
+                const res = await fetch(`/api/agent/status?name=${currentPRD}`);
+                const data = await res.json();
+                const statusBadge = document.getElementById('agent-status');
+                const states = ['Ready', 'Running', 'Paused', 'Stopped', 'Complete', 'Error'];
+                const stateText = states[data.state] || 'Unknown';
+                statusBadge.innerText = stateText.toUpperCase();
+                statusBadge.className = `status-pill status-${stateText}`;
+                document.getElementById('btn-start').disabled = data.state === 1;
+                document.getElementById('btn-stop').disabled = data.state !== 1;
+                document.getElementById('iter-count').innerText = data.state === 1 ? `ITERATION ${data.iteration}` : stateText;
+            } catch (e) { }
+        }
+
+        function startLogPolling() {
+            if (logInterval) clearInterval(logInterval);
+            fetchLogs();
+            logInterval = setInterval(fetchLogs, 1000);
+        }
+
+        async function fetchLogs() {
+            if (!currentPRD) return;
+            try {
+                const res = await fetch(`/api/agent/log?name=${currentPRD}`);
+                const logs = await res.json();
+                const win = document.getElementById('log-window');
+                if (logs.length > 0) {
+                    win.innerHTML = logs.map(line => {
+                        let className = 'log-line';
+                        if (line.includes('Tool:')) className += ' tool';
+                        if (line.includes('Error:')) className += ' error';
+                        const content = line.replace(/^\[.*?\] /, '').replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z: /, '');
+                        return `<div class="${className}">${content}</div>`;
+                    }).join('');
+                    win.scrollTop = win.scrollHeight;
+                }
+                updateStatus();
+            } catch (e) { }
+        }
+
+        async function fetchRepos() {
+            try {
+                const res = await fetch('/api/git/repos');
+                const repos = await res.json();
+                const selects = document.querySelectorAll('.repo-select');
+                const options = '<option value="">Select Repository...</option>' +
+                    repos.map(r => `<option value="${r.owner.login}/${r.name}" data-owner="${r.owner.login}" data-repo="${r.name}" data-clone-url="${r.clone_url}">${r.owner.login}/${r.name}</option>`).join('');
+                selects.forEach(s => s.innerHTML = options);
+            } catch (e) { console.error('Failed to fetch repos', e); }
+        }
+
+
+        function updateRepoFields(select) {
+            const option = select.options[select.selectedIndex];
+            const form = select.form;
+            form.querySelector('[name="owner"]').value = option.dataset.owner || '';
+            form.querySelector('[name="repo"]').value = option.dataset.repo || '';
+        }
+
+        async function loadIssues(form) {
+            const owner = form.querySelector('[name="owner"]').value;
+            const repo = form.querySelector('[name="repo"]').value;
+            const issueSelect = form.querySelector('.issue-select');
+            if (!owner || !repo || !issueSelect) return;
+
+            issueSelect.innerHTML = '<option value="">Loading issues...</option>';
+            try {
+                const res = await fetch(`/api/git/repos/${owner}/${repo}/issues?state=open`);
+                const issues = await res.json();
+                issueSelect.innerHTML = '<option value="">Select Issue...</option>' +
+                    issues.map(i => `<option value="${i.number}">#${i.number} - ${i.title}</option>`).join('');
+            } catch (e) {
+                issueSelect.innerHTML = '<option value="">Failed to load issues</option>';
+            }
+        }
+
+        async function loadPulls(form) {
+            const owner = form.querySelector('[name="owner"]').value;
+            const repo = form.querySelector('[name="repo"]').value;
+            const container = document.getElementById('pr-list-container');
+            const list = document.getElementById('repo-prs');
+            if (!owner || !repo) return;
+
+            container.style.display = 'block';
+            list.innerHTML = '<div style="color: var(--fg-dim);">Loading...</div>';
+            try {
+                const res = await fetch(`/api/git/repos/${owner}/${repo}/pulls?state=open`);
+                const pulls = await res.json();
+                list.innerHTML = pulls.length ? pulls.map(p =>
+                    `<div style="margin-bottom: 8px; padding: 8px; background: rgba(255,255,255,0.02); border-radius: 6px; border: 1px solid var(--border);">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--accent); font-weight: 700;">#${p.number}</span>
+                            <span style="color: var(--success); font-weight: 700; font-size: 10px;">${p.state.toUpperCase()}</span>
+                        </div>
+                        <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px;">${p.title}</div>
+                        <a href="${p.html_url}" target="_blank" style="font-size: 10px; color: var(--fg-dim); text-decoration: none; margin-top: 4px; display: block;">View on Git ↗</a>
+                    </div>`
+                ).join('') : '<div style="color: var(--fg-dim);">No active PRs</div>';
+            } catch (e) {
+                list.innerHTML = '<div style="color: var(--error);">Failed to load</div>';
+            }
+        }
+
+        async function createPR(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = Object.fromEntries(new FormData(form).entries());
+            if (!data.owner || !data.repo) return alert('Select a repository first');
+
+            try {
+                const res = await fetch(`/api/git/repos/${data.owner}/${data.repo}/pulls`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (res.ok) alert('Successfully created Pull Request');
+                else alert('Error: ' + await res.text());
+            } catch (e) { alert('Server error'); }
+        }
+
+        async function createIssue(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = Object.fromEntries(new FormData(form).entries());
+            if (!data.owner || !data.repo) return alert('Select a repository first');
+
+            try {
+                const res = await fetch(`/api/git/repos/${data.owner}/${data.repo}/issues`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (res.ok) alert('Successfully opened Issue');
+                else alert('Error: ' + await res.text());
+            } catch (e) { alert('Server error'); }
+        }
+
+        async function suggestFix(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = Object.fromEntries(new FormData(form).entries());
+            if (!data.owner || !data.repo) return alert('Select a repository first');
+            if (!data.issue_number) return alert('Select an issue first');
+            data.issue_number = parseInt(data.issue_number);
+
+            try {
+                const res = await fetch(`/api/git/repos/${data.owner}/${data.repo}/suggest-fix`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (res.ok) alert('Fix request sent to AI');
+                else alert('Error: ' + await res.text());
+            } catch (e) { alert('Server error'); }
+        }
+
+        fetchPRDs();
+        fetchRepos();
+        setInterval(fetchPRDs, 15000);
+    </script>
+</body>
+
+</html>

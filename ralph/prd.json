@@ -1,0 +1,427 @@
+{
+  "project": "Chief TUI",
+  "description": "Autonomous agent loop for working through PRDs with Claude Code - a TUI application that orchestrates Claude to implement features from product requirements documents.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Go Project Setup with Bubble Tea",
+      "description": "As a developer, I need a properly structured Go project with Bubble Tea so that I have a foundation for building the TUI.",
+      "acceptanceCriteria": [
+        "Initialize Go module at github.com/minicodemonkey/chief",
+        "Add Bubble Tea, Lip Gloss, and Bubbles dependencies",
+        "Create directory structure: cmd/chief/, internal/loop/, internal/prd/, internal/tui/, internal/notify/, embed/",
+        "Create minimal main.go that launches a 'Hello World' Bubble Tea app",
+        "go build ./cmd/chief produces a working binary",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true
+    },
+    {
+      "id": "US-002",
+      "title": "PRD Types and Loader",
+      "description": "As a developer, I need to load and parse PRD JSON files so that the loop knows what stories to work on.",
+      "acceptanceCriteria": [
+        "Create internal/prd/types.go with PRD and UserStory structs matching the schema",
+        "Create internal/prd/loader.go with LoadPRD(path string) (*PRD, error)",
+        "Add PRD.AllComplete() bool method that returns true when all stories have passes: true",
+        "Add PRD.NextStory() *UserStory that returns: first inProgress: true story, or lowest priority passes: false story",
+        "Add PRD.Save(path string) error for updating the JSON file",
+        "Unit tests for all methods including edge cases (empty PRD, all complete, interrupted story)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true
+    },
+    {
+      "id": "US-003",
+      "title": "Stream-JSON Parser",
+      "description": "As a developer, I need to parse Claude's stream-json output so that I can extract events for the TUI.",
+      "acceptanceCriteria": [
+        "Create internal/loop/parser.go with EventType constants: IterationStart, AssistantText, ToolStart, ToolResult, StoryStarted, StoryCompleted, Complete, MaxIterationsReached, Error",
+        "Create Event struct with fields: Type, Iteration, Text, Tool, ToolInput, StoryID, Err",
+        "Create parseLine(line string) *Event function that parses stream-json format",
+        "Detect <chief-complete/> in assistant text and return Complete event",
+        "Extract tool name and input from tool_use content blocks",
+        "Unit tests with example stream-json lines",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true
+    },
+    {
+      "id": "US-004",
+      "title": "Core Agent Loop",
+      "description": "As a developer, I need the core loop that invokes Claude repeatedly until all stories are complete.",
+      "acceptanceCriteria": [
+        "Create internal/loop/loop.go with Loop struct containing: prdPath, prompt, maxIter, iteration, events chan Event, claudeCmd",
+        "Implement Run(ctx context.Context) error that loops until complete or max iterations",
+        "Implement runIteration(ctx context.Context) error that spawns Claude with flags: --dangerously-skip-permissions, -p, --output-format stream-json, --verbose",
+        "Stream stdout line by line, parse each line, send events to channel",
+        "Log raw output to claude.log file in PRD directory",
+        "Implement Stop() method that kills the Claude process",
+        "Check prd.json after each iteration to detect completion",
+        "Integration test with mock Claude script that outputs predefined stream-json",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true
+    },
+    {
+      "id": "US-005",
+      "title": "Embed Agent Prompt",
+      "description": "As a developer, I need the agent prompt embedded in the binary so that Claude knows how to work through stories.",
+      "acceptanceCriteria": [
+        "Create embed/prompt.txt with the agent prompt from the spec",
+        "Use Go's //go:embed directive to embed the prompt",
+        "Loop uses embedded prompt, substituting PRD path placeholder",
+        "Prompt instructs Claude to: read prd.json, select next story, set inProgress, implement, mark passes, append to progress.md, output <chief-complete/> when done",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true
+    },
+    {
+      "id": "US-006",
+      "title": "Basic Dashboard View",
+      "description": "As a user, I want to see a dashboard showing story status and details so that I can monitor progress.",
+      "acceptanceCriteria": [
+        "Create internal/tui/app.go with main Bubble Tea model",
+        "Create internal/tui/dashboard.go with two-panel layout: Stories list (left) and Details (right)",
+        "Stories panel shows: status icon, story ID, truncated title",
+        "Details panel shows: full title, description, acceptance criteria list, priority",
+        "Header shows: chief branding, state indicator, iteration count, elapsed time",
+        "Footer shows: available keyboard shortcuts, current PRD name",
+        "Progress bar at bottom of stories panel showing completion percentage",
+        "Keyboard navigation: up/k and down/j to move selection",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true
+    },
+    {
+      "id": "US-007",
+      "title": "Start/Pause/Stop Controls",
+      "description": "As a user, I want to control the agent loop with keyboard shortcuts so that I can start, pause, or stop execution.",
+      "acceptanceCriteria": [
+        "s key starts the loop when in Ready/Paused state",
+        "p key sets pause flag (loop stops after current iteration completes)",
+        "x key stops immediately (kills Claude process)",
+        "State transitions: Ready to Running, Running to Paused (after iteration), Running to Stopped",
+        "TUI updates header state indicator in real-time",
+        "Activity line at bottom shows current Claude activity (last assistant text)",
+        "Unit tests for state machine transitions",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": true
+    },
+    {
+      "id": "US-008",
+      "title": "PRD File Watching",
+      "description": "As a user, I want the TUI to update when prd.json changes so that I see story status changes in real-time.",
+      "acceptanceCriteria": [
+        "Watch prd.json for filesystem changes using fsnotify",
+        "Reload PRD and update TUI when file changes",
+        "Detect when a story's inProgress or passes field changes",
+        "Update story icons in real-time as Claude marks progress",
+        "Handle file not found gracefully (show error, don't crash)",
+        "Integration test verifying TUI updates when file is modified externally",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true
+    },
+    {
+      "id": "US-009",
+      "title": "Lip Gloss Styling System",
+      "description": "As a developer, I need a consistent styling system so that the TUI looks polished and cohesive.",
+      "acceptanceCriteria": [
+        "Create internal/tui/styles.go with Lip Gloss style definitions",
+        "Define color palette: Primary cyan (#00D7FF), Success green (#5AF78E), Warning yellow (#F3F99D), Error red (#FF5C57), Muted gray (#6C7086), Border gray (#45475A)",
+        "Create styles for: headers, borders, selected items, status badges, progress bars",
+        "Status indicators use correct colors: in-progress cyan, complete green, pending muted, failed red, paused yellow",
+        "All existing views use the new styling system",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true
+    },
+    {
+      "id": "US-010",
+      "title": "Log Viewer with Tool Cards",
+      "description": "As a user, I want a full-screen log view showing Claude's streaming output so that I can see what Claude is doing in detail.",
+      "acceptanceCriteria": [
+        "Create internal/tui/log.go with scrollable log viewport",
+        "Toggle with t key from dashboard",
+        "Display assistant text as regular paragraphs",
+        "Display tool calls as styled cards with icon and tool name",
+        "Vim-style scrolling: j/down, k/up, Ctrl+D page down, Ctrl+U page up, G bottom, g top",
+        "Auto-scroll to bottom when new content arrives (unless user has scrolled up)",
+        "Show cursor indicator at bottom when streaming",
+        "Footer shows log-specific shortcuts",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true
+    },
+    {
+      "id": "US-011",
+      "title": "PRD Picker Modal",
+      "description": "As a user, I want to switch between multiple PRDs so that I can manage different features.",
+      "acceptanceCriteria": [
+        "Create internal/tui/picker.go with modal overlay",
+        "Toggle with l key",
+        "List all PRDs in .chief/prds/ directory",
+        "Each entry shows: name, project title, progress bar, status",
+        "Keyboard navigation: up/down to select, Enter to switch, Esc to cancel",
+        "n key in picker opens prompt for new PRD name",
+        "Current PRD highlighted with indicator",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": true
+    },
+    {
+      "id": "US-012",
+      "title": "Parallel PRD Execution",
+      "description": "As a user, I want to run multiple PRDs simultaneously so that I can work on different features in parallel.",
+      "acceptanceCriteria": [
+        "Each PRD has its own independent loop instance (goroutine with its own Claude process)",
+        "PRD picker shows real-time status of all PRDs: Running (with iteration count), Paused, Ready, Complete, Error",
+        "Can start/pause/stop any PRD from the picker without affecting others",
+        "Switching PRDs in the dashboard shows that PRD's details and log",
+        "Activity indicator in header shows which PRDs are currently running",
+        "Completion sound plays when ANY PRD completes (not just the currently viewed one)",
+        "x (stop) in picker stops the selected PRD, not the currently viewed one",
+        "Resource cleanup: when quitting Chief, gracefully stop all running Claude processes",
+        "Unit tests for multi-loop state management",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true
+    },
+    {
+      "id": "US-013",
+      "title": "Help Overlay",
+      "description": "As a user, I want to see all keyboard shortcuts in a help overlay so that I can learn the interface quickly.",
+      "acceptanceCriteria": [
+        "Toggle with ? key from any view",
+        "Display all shortcuts organized by category: Loop Control, Views, Navigation, Scrolling, General",
+        "Shortcuts display matches current view context",
+        "Esc or ? closes overlay",
+        "Centered modal with border",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": true
+    },
+    {
+      "id": "US-014",
+      "title": "Narrow Terminal Support",
+      "description": "As a user, I want the TUI to work on narrow terminals so that I can use it in split panes.",
+      "acceptanceCriteria": [
+        "Detect terminal width on startup and resize",
+        "Below 100 columns: switch to single-column stacked layout",
+        "Stories panel on top, details panel below",
+        "Minimum supported width: 80 columns",
+        "Gracefully truncate long text with ellipsis",
+        "Keyboard shortcuts condensed in narrow mode",
+        "Unit tests for layout calculations at various widths",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": true
+    },
+    {
+      "id": "US-015",
+      "title": "Error and Warning States",
+      "description": "As a user, I want clear error and warning displays so that I know when something goes wrong and how to fix it.",
+      "acceptanceCriteria": [
+        "Error state: red ERROR indicator in header, error details in right panel",
+        "Display exit code and error message from Claude",
+        "Check claude.log for full error details hint",
+        "s key shows Retry in error state",
+        "Interrupted story warning: when starting with inProgress: true story, show notice",
+        "Empty state: when no PRDs exist, show centered message with chief new instructions",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true
+    },
+    {
+      "id": "US-016",
+      "title": "Chief Init Command",
+      "description": "As a user, I want to create new PRDs interactively so that I can describe features and have Claude help structure them.",
+      "acceptanceCriteria": [
+        "chief new creates PRD in .chief/prds/main/",
+        "chief new <name> creates PRD in .chief/prds/<name>/",
+        "chief new <name> <context> passes context to Claude",
+        "Command launches interactive Claude Code session with embedded PRD generator prompt",
+        "Creates directory structure if it doesn't exist",
+        "After Claude session ends, automatically run conversion (see US-018)",
+        "Exit cleanly after conversion completes",
+        "Integration test verifying directory creation and Claude invocation",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": true
+    },
+    {
+      "id": "US-017",
+      "title": "Chief Edit Command",
+      "description": "As a user, I want to edit existing PRDs interactively so that I can refine requirements with Claude's help.",
+      "acceptanceCriteria": [
+        "chief edit edits .chief/prds/main/prd.md",
+        "chief edit <name> edits .chief/prds/<name>/prd.md",
+        "Error if PRD doesn't exist (suggest chief new instead)",
+        "Launch interactive Claude session with existing prd.md as context",
+        "After session ends, run conversion with progress protection (see US-019)",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": true
+    },
+    {
+      "id": "US-018",
+      "title": "Auto-Conversion (prd.md to prd.json)",
+      "description": "As a user, I want prd.md automatically converted to prd.json so that I only edit the human-readable format.",
+      "acceptanceCriteria": [
+        "Create internal/prd/generator.go with conversion logic",
+        "Conversion runs: after chief new, after chief edit, before chief run if prd.md is newer",
+        "Invoke Claude one-shot (non-interactive) with embedded converter prompt",
+        "Claude reads prd.md and writes prd.json",
+        "Verify prd.json is valid JSON after conversion",
+        "Integration test with sample prd.md files",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": true
+    },
+    {
+      "id": "US-019",
+      "title": "Progress Protection on Conversion",
+      "description": "As a user, I want my progress preserved when I edit the PRD so that I don't lose completed work.",
+      "acceptanceCriteria": [
+        "Before conversion, check if prd.json has progress (any passes: true or inProgress: true)",
+        "If progress exists and prd.md changed, show warning with options: Merge, Overwrite, Cancel",
+        "Merge behavior: keep status for matching story IDs, add new stories, drop removed stories",
+        "--merge flag auto-merges without prompting",
+        "--force flag auto-overwrites without prompting",
+        "Unit tests for merge logic with various scenarios",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": true
+    },
+    {
+      "id": "US-020",
+      "title": "Completion Sound",
+      "description": "As a user, I want an audio notification when the loop completes so that I can work on other things and be alerted.",
+      "acceptanceCriteria": [
+        "Embed ~30KB WAV file in binary using //go:embed",
+        "Play sound when: all stories complete, max iterations reached",
+        "Use github.com/hajimehoshi/oto/v2 for cross-platform audio playback",
+        "--no-sound flag disables audio",
+        "Handle audio device errors gracefully (log warning, don't crash)",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": true
+    },
+    {
+      "id": "US-021",
+      "title": "Quick Commands (status, list)",
+      "description": "As a user, I want quick CLI commands to check progress without launching the TUI.",
+      "acceptanceCriteria": [
+        "chief status prints progress for default PRD: project name, X/Y stories complete, list of incomplete stories",
+        "chief status <name> prints progress for specific PRD",
+        "chief list prints all PRDs in .chief/prds/ with name, title, and progress percentage",
+        "Output is plain text, suitable for scripting",
+        "Exit code 0 for success, non-zero for errors",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": true
+    },
+    {
+      "id": "US-022",
+      "title": "CLI Flag Parsing",
+      "description": "As a user, I want consistent CLI flags so that I can configure Chief's behavior.",
+      "acceptanceCriteria": [
+        "--max-iterations N sets iteration limit (default: 10)",
+        "--no-sound disables completion sound",
+        "--verbose shows raw Claude output in log",
+        "--merge auto-merges on conversion conflicts",
+        "--force auto-overwrites on conversion conflicts",
+        "Positional argument: PRD name or path to prd.json",
+        "--help shows usage with all flags documented",
+        "--version shows version number",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": true
+    },
+    {
+      "id": "US-023",
+      "title": "Goreleaser Configuration",
+      "description": "As a maintainer, I need goreleaser configured so that I can build release binaries for all platforms.",
+      "acceptanceCriteria": [
+        "Create .goreleaser.yaml with build configuration",
+        "Build targets: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64, windows/amd64",
+        "Binary name: chief",
+        "Include version info via ldflags",
+        "goreleaser release --snapshot --clean produces all binaries",
+        "Archives use .tar.gz for Unix, .zip for Windows",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": true
+    },
+    {
+      "id": "US-024",
+      "title": "Homebrew Formula",
+      "description": "As a macOS/Linux user, I want to install Chief via Homebrew so that I get easy updates.",
+      "acceptanceCriteria": [
+        "Create Homebrew formula in separate tap repository or inline",
+        "Formula downloads correct binary for platform",
+        "brew install chief works on macOS (Intel and Apple Silicon)",
+        "brew install chief works on Linux",
+        "Formula includes description and homepage"
+      ],
+      "priority": 24,
+      "passes": true
+    },
+    {
+      "id": "US-025",
+      "title": "Install Script",
+      "description": "As a user without Homebrew, I want a simple install script so that I can install Chief easily.",
+      "acceptanceCriteria": [
+        "Create install.sh script hosted at raw.githubusercontent.com/MiniCodeMonkey/chief/refs/heads/main/install.sh",
+        "Script detects OS (darwin/linux) and architecture (amd64/arm64)",
+        "Downloads correct binary from GitHub releases",
+        "Installs to /usr/local/bin (or ~/.local/bin if no sudo)",
+        "Verifies checksum before installing",
+        "curl -fsSL https://raw.githubusercontent.com/MiniCodeMonkey/chief/refs/heads/main/install.sh | sh works",
+        "Script is idempotent (can run multiple times safely)"
+      ],
+      "priority": 25,
+      "passes": true
+    },
+    {
+      "id": "US-026",
+      "title": "README and Documentation",
+      "description": "As a new user, I want clear documentation so that I can understand and use Chief quickly.",
+      "acceptanceCriteria": [
+        "Create comprehensive README.md with: Quick Start, How It Works, Installation, Usage examples, Keyboard shortcuts table, PRD format reference, Troubleshooting",
+        "Include ASCII diagram showing data flow",
+        "Create docs/adr/ with Architecture Decision Records for key decisions",
+        "Add inline code documentation for all public functions",
+        "All code examples in docs are tested/verified",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": true
+    }
+  ]
+}

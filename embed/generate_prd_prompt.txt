@@ -1,0 +1,49 @@
+# Chief PRD One-Shot Generator
+
+You are an expert product manager. Your task is to generate a comprehensive `prd.md` file based on a high-level project name and description.
+
+## Project Name
+{{NAME}}
+
+## User Description
+{{DESCRIPTION}}
+
+## Your Task
+
+Create a `prd.md` file at `{{PRD_DIR}}/prd.md` with a structured PRD. 
+
+## PRD Format Requirements
+
+The `prd.md` MUST follow this exact structure to be compatible with conversion:
+
+```markdown
+# [Project Name]
+
+## Overview
+[A detailed overview of the project based on the user's description]
+
+## User Stories
+
+### US-001: [Meaningful Title]
+**Priority:** 1
+**Description:** As a [user type], I want [goal] so that [benefit].
+
+**Acceptance Criteria:**
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+### US-002: [Meaningful Title]
+**Priority:** 2
+...
+```
+
+## Guidelines
+
+1. **Be Comprehensive**: Expand the user's brief description into a full set of requirements.
+2. **Break down the feature** into at least 3-5 small, implementable user stories.
+3. **Prioritize stories** - start with the core functionality.
+4. **Include clear acceptance criteria** - specific and testable.
+5. **Quality implementation**: Include stories for setup, testing, or documentation if appropriate.
+
+Write the `prd.md` file to `{{PRD_DIR}}/prd.md` now using your tools.

@@ -1,0 +1,680 @@
+# Chief TUI - Progress Log
+
+## Codebase Patterns
+
+- Use `/chief` (with leading slash) in .gitignore for the root binary to avoid ignoring `cmd/chief/` directory
+- Directory structure: `cmd/chief/` for main binary, `internal/` for packages, `embed/` for embedded assets
+- Claude's stream-json format: use `--output-format stream-json --verbose` with `-p` flag
+- Use json.RawMessage for partial JSON parsing when structure varies (e.g., content blocks)
+- Embed assets: use `embed/` package with //go:embed directive, use {{PLACEHOLDER}} syntax for substitution
+- File watching: use fsnotify for filesystem changes, send events through channels, only notify on status field changes
+- Styling: Use centralized styles from internal/tui/styles.go, use GetStateStyle() and GetActivityStyle() for state-dependent rendering
+- Parallel execution: Use internal/loop/manager.go Manager for multi-PRD loops, each instance has own goroutine and context
+- Audio: Use internal/notify package with oto/v2, singleton pattern for oto.Context, graceful error handling for missing audio devices
+- Goreleaser: Use separate build IDs (chief-darwin, chief-linux, chief-windows) for platform-specific CGO settings
+- Build tags: Use `//go:build darwin || windows || (linux && cgo)` for platform-specific code with CGO-dependent libraries
+
+---
+
+## 2026-01-25 - US-001
+- What was implemented:
+  - Initialized Go module at github.com/minicodemonkey/chief
+  - Added Bubble Tea, Lip Gloss, and Bubbles dependencies
+  - Created directory structure: cmd/chief/, internal/loop/, internal/prd/, internal/tui/, internal/notify/, embed/
+  - Created minimal main.go with Hello World Bubble Tea app
+  - Verified `go build ./cmd/chief` produces working binary
+  - Verified typecheck passes with `go vet ./...`
+- Files changed:
+  - go.mod, go.sum (new)
+  - cmd/chief/main.go (new)
+  - .gitignore (new)
+- **Learnings for future iterations:**
+  - Be careful with .gitignore patterns - `chief` would match both the binary AND `cmd/chief/` directory. Use `/chief` to only match root-level binary
+  - Go doesn't track empty directories, so internal subdirs only appear in git when files are added
+  - The Hello World app uses standard Bubble Tea pattern: Init(), Update(), View() methods
+---
+
+## 2026-01-25 - US-002
+- What was implemented:
+  - Created internal/prd/types.go with PRD and UserStory structs matching the prd.json schema
+  - Created internal/prd/loader.go with LoadPRD(path) and Save(path) methods
+  - Added PRD.AllComplete() bool method that returns true when all stories pass
+  - Added PRD.NextStory() *UserStory method that prioritizes inProgress stories, then lowest priority
+  - Comprehensive unit tests covering all edge cases (empty PRD, all complete, interrupted story, priority ordering)
+- Files changed:
+  - internal/prd/types.go (new)
+  - internal/prd/loader.go (new)
+  - internal/prd/prd_test.go (new)
+- **Learnings for future iterations:**
+  - NextStory() should always check for inProgress stories first (handles interrupted work)
+  - Use `json:"inProgress,omitempty"` to avoid outputting false values in JSON (cleaner output)
+  - Go test pattern: use t.TempDir() for test file operations - auto-cleaned up after test
+  - The PRD struct returns pointers to UserStory to allow nil checks for "no story available"
+---
+
+## 2026-01-25 - US-003
+- What was implemented:
+  - Created internal/loop/parser.go with EventType constants (IterationStart, AssistantText, ToolStart, ToolResult, StoryStarted, StoryCompleted, Complete, MaxIterationsReached, Error)
+  - Created Event struct with fields: Type, Iteration, Text, Tool, ToolInput, StoryID, Err
+  - Implemented ParseLine(line string) *Event function that parses Claude's stream-json format
+  - Added detection for <chief-complete/> tag to return Complete event
+  - Added detection for <ralph-status> tags to track story progress
+  - Extracts tool name and input from tool_use content blocks
+  - Parses tool results from user messages
+  - Comprehensive unit tests with real-world example stream-json lines
+- Files changed:
+  - internal/loop/parser.go (new)
+  - internal/loop/parser_test.go (new)
+- **Learnings for future iterations:**
+  - Claude's stream-json output requires `--verbose` flag when using `-p` (print mode)
+  - The stream-json format has three main message types: "system" (init), "assistant" (text/tool_use), "user" (tool_result)
+  - Assistant messages can have multiple content blocks - parser returns the first meaningful event
+  - Use json.RawMessage for nested structures to handle varying content block types
+  - The extractStoryID helper uses string indices rather than regex for simplicity and performance
+---
+
+## 2026-01-25 - US-004
+- What was implemented:
+  - Created internal/loop/loop.go with Loop struct containing: prdPath, prompt, maxIter, iteration, events chan, claudeCmd, logFile, mu, stopped
+  - Implemented Run(ctx context.Context) error that loops until complete or max iterations
+  - Implemented runIteration(ctx context.Context) error that spawns Claude with flags: --dangerously-skip-permissions, -p, --output-format stream-json, --verbose
+  - Streams stdout line by line, parses each line with ParseLine(), sends events to channel
+  - Logs raw output to claude.log file in PRD directory
+  - Implemented Stop() method that kills the Claude process and sets stopped flag
+  - Checks prd.json after each iteration to detect completion using PRD.AllComplete()
+  - Created comprehensive integration tests with mock data
+- Files changed:
+  - internal/loop/loop.go (new)
+  - internal/loop/loop_test.go (new)
+- **Learnings for future iterations:**
+  - Use bufio.Scanner with increased buffer size (1MB) for parsing large JSON lines from Claude
+  - The Loop struct uses a mutex to protect claudeCmd and iteration during concurrent access
+  - Use exec.CommandContext for automatic process cancellation when context is cancelled
+  - Set working directory of Claude process to PRD directory so relative paths work correctly
+  - The events channel has a buffer (100) to prevent blocking during high-frequency event emission
+  - When testing file-based logic, use t.TempDir() for automatic cleanup
+---
+
+## 2026-01-25 - US-005
+- What was implemented:
+  - Created embed/prompt.txt with the agent prompt that instructs Claude how to work through user stories
+  - Created embed/embed.go with //go:embed directive to embed the prompt at compile time
+  - Implemented GetPrompt(prdPath string) function that substitutes {{PRD_PATH}} placeholder with actual path
+  - Added NewLoopWithEmbeddedPrompt(prdPath, maxIter) constructor to internal/loop/loop.go
+  - Created comprehensive unit tests for the embed package
+  - Prompt includes all required instructions: read prd.json, select next story, set inProgress, implement, mark passes, append to progress.md, output <chief-complete/> when done
+- Files changed:
+  - embed/prompt.txt (new)
+  - embed/embed.go (new)
+  - embed/embed_test.go (new)
+  - internal/loop/loop.go (modified - added NewLoopWithEmbeddedPrompt function)
+- **Learnings for future iterations:**
+  - Go's //go:embed directive embeds file content at compile time, making it available as a string variable
+  - Use underscore import (`_ "embed"`) when using //go:embed with a package-level string variable
+  - The embedded prompt uses {{PRD_PATH}} as a placeholder for string substitution with strings.ReplaceAll
+  - Keep the embed package separate from internal packages to allow clean imports
+---
+
+## 2026-01-25 - US-006
+- What was implemented:
+  - Created internal/tui/app.go with main Bubble Tea model containing App struct with state, iteration tracking, PRD data
+  - Created internal/tui/dashboard.go with two-panel layout (Stories list + Details panel)
+  - Created internal/tui/styles.go with basic Lip Gloss style definitions and status icons
+  - Stories panel shows: status icon (checkmark/dot/circle), story ID, truncated title with selection highlight
+  - Details panel shows: full title, description, acceptance criteria list, priority and status
+  - Header shows: "chief" branding, state indicator with colors (Ready/Running/etc), iteration count, elapsed time
+  - Footer shows: keyboard shortcuts (up/k, down/j, q), current PRD name
+  - Progress bar at bottom of stories panel showing completion percentage with filled/empty bars
+  - Keyboard navigation: up/k moves selection up, down/j moves selection down, q quits
+  - Updated cmd/chief/main.go to use the new TUI package with PRD path argument support
+- Files changed:
+  - internal/tui/app.go (new)
+  - internal/tui/dashboard.go (new)
+  - internal/tui/styles.go (new)
+  - cmd/chief/main.go (modified)
+- **Learnings for future iterations:**
+  - lipgloss.Color is a type, not a style - use lipgloss.NewStyle().Foreground(color) to render text with a color
+  - Bubble Tea uses tea.WithAltScreen() for full-screen TUI applications
+  - The App struct needs width/height from tea.WindowSizeMsg to properly render layouts
+  - Use lipgloss.JoinHorizontal/JoinVertical for composing UI elements
+  - Text wrapping needs to be handled manually - created wrapText helper function
+  - Panel borders take up 2 characters of width (1 each side), account for this in width calculations
+---
+
+## 2026-01-25 - US-007
+- What was implemented:
+  - Added loop control methods to internal/loop/loop.go: Pause(), Resume(), IsPaused(), IsStopped(), IsRunning()
+  - Modified Loop.Run() to check pause flag and stop cleanly when paused
+  - Integrated Loop with App in internal/tui/app.go using context for cancellation
+  - Added keyboard handlers: 's' to start, 'p' to pause, 'x' to stop
+  - Added LoopEventMsg and LoopFinishedMsg custom Bubble Tea messages for loop events
+  - Added activity line at bottom of dashboard showing current Claude activity
+  - Context-sensitive footer shortcuts based on current state
+  - Unit tests for state machine transitions in state_test.go
+- Files changed:
+  - internal/loop/loop.go (modified - added pause methods)
+  - internal/tui/app.go (modified - added loop integration, keyboard handlers, event handling)
+  - internal/tui/dashboard.go (modified - added activity line, context-sensitive shortcuts)
+  - internal/tui/state_test.go (new)
+- **Learnings for future iterations:**
+  - Use tea.Batch() to run multiple commands concurrently (e.g., runLoop + listenForEvents)
+  - Custom messages (LoopEventMsg, LoopFinishedMsg) allow clean separation of loop events from UI
+  - The loop's Events() channel should be read in a separate command to avoid blocking the UI
+  - State transitions in Update() should return immediately with new commands for async operations
+  - Context with cancel is essential for clean shutdown of the loop goroutine
+  - Footer shortcuts should be context-sensitive to guide users to valid actions
+---
+
+## 2026-01-25 - US-008
+- What was implemented:
+  - Created internal/prd/watcher.go with Watcher struct for file watching using fsnotify
+  - Watcher monitors prd.json for filesystem changes and sends WatcherEvent through a channel
+  - Added hasStatusChanged() method to detect when a story's inProgress or passes field changes
+  - Integrated watcher with TUI app in internal/tui/app.go
+  - Added PRDUpdateMsg custom Bubble Tea message for PRD file changes
+  - Watcher starts on app Init() and listens for changes concurrently
+  - Handles file not found gracefully (sends error event, tries to re-watch)
+  - Updates story icons in real-time when file changes
+  - Created comprehensive integration tests for file watching functionality
+- Files changed:
+  - go.mod, go.sum (modified - added fsnotify dependency)
+  - internal/prd/watcher.go (new)
+  - internal/prd/watcher_test.go (new)
+  - internal/tui/app.go (modified - added watcher integration)
+- **Learnings for future iterations:**
+  - fsnotify requires explicit handling of file removal (try to re-add watch for potential recreation)
+  - Use WatcherEvent struct with both PRD and Error fields to communicate success/failure
+  - Only send PRD change events when status fields actually change (avoid noise from description edits)
+  - The hasStatusChanged() method maps old stories by ID for efficient comparison
+  - Watcher uses a buffered channel (10) to prevent blocking during rapid file changes
+  - Always stop the watcher on app quit to release file handles
+---
+
+## 2026-01-25 - US-009
+- What was implemented:
+  - Expanded internal/tui/styles.go into a comprehensive styling system
+  - Defined complete color palette with semantic names: PrimaryColor (cyan #00D7FF), SuccessColor (green #5AF78E), WarningColor (yellow #F3F99D), ErrorColor (red #FF5C57), MutedColor (gray #6C7086), BorderColor (dark gray #45475A)
+  - Added text colors (TextColor, TextMutedColor, TextBrightColor) and background colors (BgColor, BgSelectedColor, BgHighlightColor)
+  - Created organized style categories: Header styles, Footer styles, Panel styles, Selection styles, Status badge styles, Title/label styles, Progress bar styles, Activity line styles, Divider styles
+  - Added state-specific styles: StateReadyStyle, StateRunningStyle, StatePausedStyle, StateStoppedStyle, StateCompleteStyle, StateErrorStyle
+  - Added helper functions: GetStateStyle(state) and GetActivityStyle(state) for consistent state rendering
+  - Added IconPaused constant and statusPausedStyle for paused state (yellow)
+  - Updated dashboard.go to use centralized styling system throughout (removed inline style definitions)
+  - Maintained backward compatibility with lowercase aliases for existing code
+- Files changed:
+  - internal/tui/styles.go (modified - expanded from 77 to 218 lines)
+  - internal/tui/dashboard.go (modified - use centralized styles)
+- **Learnings for future iterations:**
+  - Organize styles into logical categories (header, footer, panel, status, etc.) for maintainability
+  - Export styles with PascalCase and keep lowercase aliases for backward compatibility
+  - Create helper functions (GetStateStyle, GetActivityStyle) to encapsulate state-to-style mappings
+  - Use semantic color names (Primary, Success, Warning, Error) rather than color names (Cyan, Green, Yellow, Red)
+  - Keep divider/border styles centralized to ensure consistent visual separators throughout the app
+---
+
+## 2026-01-25 - US-010
+- What was implemented:
+  - Created internal/tui/log.go with LogViewer struct and LogEntry type
+  - Added scrollable viewport with line-by-line rendering
+  - Toggle with 't' key from dashboard, returns to dashboard with 't'
+  - Assistant text rendered as regular paragraphs with word wrapping
+  - Tool calls displayed as styled cards (box with icon and tool name)
+  - Tool results shown as compact lines with arrow indicator
+  - Story markers and completion messages have special styling
+  - Vim-style scrolling: j/k (line), Ctrl+D/U (page), g/G (top/bottom)
+  - Auto-scroll enabled by default, disabled when user scrolls up manually
+  - Blinking cursor indicator shown at bottom when auto-scrolling and streaming
+  - Footer shows context-sensitive shortcuts (log view vs dashboard view)
+  - Added ViewMode type to App for switching between views
+  - Updated handleLoopEvent to add events to log viewer
+- Files changed:
+  - internal/tui/log.go (new - LogViewer, LogEntry, scrolling, rendering)
+  - internal/tui/app.go (modified - ViewMode, log viewer integration, key handlers)
+  - internal/tui/dashboard.go (modified - renderLogView, renderLogHeader, updated footer)
+- **Learnings for future iterations:**
+  - Use line-based rendering ([]string) for scrollable content instead of calculating heights dynamically
+  - Auto-scroll behavior: track with boolean, disable on scroll up, re-enable at bottom
+  - Tool cards use Unicode box drawing (╭╮╰╯│─) for clean borders
+  - Blink effect with lipgloss.Blink(true) for cursor indicators
+  - ViewMode enum pattern works well for multi-view TUI applications
+  - Key handlers should check viewMode first for view-specific behavior
+---
+
+## 2026-01-25 - US-011
+- What was implemented:
+  - Created internal/tui/picker.go with PRDPicker struct and PRDEntry type
+  - Modal overlay that lists all PRDs from .chief/prds/ directory
+  - Each entry shows: name, progress bar (█/░), completion count, status indicators (● for in-progress, ✓ for complete)
+  - Current PRD highlighted with green bullet indicator
+  - Keyboard navigation: up/k, down/j, Enter to select, Esc/l to close
+  - 'n' key enters input mode for creating new PRD with name validation (alphanumeric, -, _)
+  - Input mode with blinking cursor and visual feedback
+  - Integrated with App: added ViewPicker mode, handlePickerKeys(), switchToPRD() methods
+  - 'l' key toggle from dashboard or log view opens picker
+  - Footer shortcuts updated to show 'l: prds' option
+- Files changed:
+  - internal/tui/picker.go (new - PRDPicker, PRDEntry, Refresh, keyboard handling, rendering)
+  - internal/tui/app.go (modified - ViewPicker mode, picker integration, switchToPRD)
+  - internal/tui/dashboard.go (modified - added 'l: prds' to footer shortcuts)
+- **Learnings for future iterations:**
+  - Modal overlays can be centered using padding calculations based on terminal dimensions
+  - Input mode requires separate key handling path (check IsInputMode() before processing normal keys)
+  - PRD switching requires stopping current loop, watcher, and reinitializing state cleanly
+  - Use os.ReadDir to list directories, check IsDir() to filter for subdirectories only
+  - Character validation for input can be done inline without regex (simpler, faster)
+  - baseDir calculation: parse the prdPath to extract parent of .chief/prds/name/
+---
+
+## 2026-01-25 - US-012
+- What was implemented:
+  - Created internal/loop/manager.go with Manager struct for parallel PRD execution
+  - LoopInstance struct tracks per-PRD state (Name, PRDPath, Loop, State, Iteration, StartTime, Error)
+  - LoopState enum: LoopStateReady, LoopStateRunning, LoopStatePaused, LoopStateStopped, LoopStateComplete, LoopStateError
+  - Manager methods: Register, Unregister, Start, Stop, Pause, GetState, GetInstance, GetAllInstances, GetRunningPRDs, GetRunningCount, StopAll
+  - ManagerEvent struct for forwarding events from any managed loop (includes PRDName)
+  - SetCompletionCallback for triggering notifications when any PRD completes
+  - Updated PRDPicker to show real-time loop status with visual indicators (▶ for running with iteration count, ⏸ for paused, ✓ for complete, ✗ for error, ■ for stopped)
+  - Added s/p/x controls in picker for selected PRD (context-sensitive footer shortcuts)
+  - Updated App to use Manager instead of single Loop instance
+  - Refactored startLoop/pauseLoop/stopLoop to work with specific PRD names
+  - switchToPRD now preserves running loops (just switches the view)
+  - Header shows running PRDs indicator (▶ +N PRDs when multiple running)
+  - Resource cleanup: stopAllLoops() called on quit, uses Manager.StopAll() which waits for all loops
+  - Comprehensive unit tests for Manager (concurrent access, state transitions, callbacks)
+- Files changed:
+  - internal/loop/manager.go (new)
+  - internal/loop/manager_test.go (new)
+  - internal/tui/app.go (modified - replaced single loop with manager, added per-PRD methods)
+  - internal/tui/dashboard.go (modified - added renderRunningIndicator)
+  - internal/tui/picker.go (modified - added LoopState/Iteration fields, manager integration, state indicators)
+- **Learnings for future iterations:**
+  - Manager pattern: centralize multi-instance management with a map of instances protected by RWMutex
+  - Each loop instance needs its own context for cancellation - store in the instance struct
+  - Use sync.WaitGroup to wait for all goroutines to complete on shutdown
+  - PRD switching should NOT stop the running loop - just change which one is being viewed
+  - State synchronization: when switching PRDs, read state from manager to show correct UI
+  - Manager events need PRDName to distinguish which PRD the event is from
+  - Loop state indicators should be compact in picker (emoji + iteration count fits well)
+  - Context-sensitive shortcuts in modals improve usability (show start/pause/stop based on selected item's state)
+---
+
+## 2026-01-25 - US-013
+- What was implemented:
+  - Created internal/tui/help.go with HelpOverlay struct, ShortcutCategory, and Shortcut types
+  - Implemented ? key toggle from any view (Dashboard, Log, Picker)
+  - Display shortcuts organized by categories: Loop Control, Views, Navigation, Scrolling, General
+  - Context-aware shortcuts: shows different categories based on current view mode
+  - Esc or ? closes the overlay, returns to previous view
+  - Centered modal with rounded border and styled header/footer
+  - Added ViewHelp mode and previousViewMode field to track view to return to
+  - Updated footer in all views to show ?: help shortcut
+- Files changed:
+  - internal/tui/help.go (new - HelpOverlay, ShortcutCategory, Shortcut, GetCategories, Render)
+  - internal/tui/app.go (modified - ViewHelp mode, helpOverlay integration, ? key handling)
+  - internal/tui/dashboard.go (modified - added ?: help to footer shortcuts)
+- **Learnings for future iterations:**
+  - Modal overlays need to remember previous view to return to (use previousViewMode pattern)
+  - Handle overlay key first before view-specific key handling to ensure it works from any view
+  - Two-column layout for shortcuts: split categories using (len+1)/2 for balanced columns
+  - Help context should match the view it was opened from, not the current ViewHelp mode
+---
+
+## 2026-01-25 - US-014
+- What was implemented:
+  - Added narrowWidthThreshold constant (100 columns) for responsive layout switching
+  - Added isNarrowMode() helper to detect narrow terminal width
+  - Created renderStackedDashboard() for single-column stacked layout (stories on top, details below)
+  - Created renderNarrowHeader() with condensed header elements (#N time format)
+  - Created renderNarrowFooter() with condensed keyboard shortcuts (just the keys, no descriptions)
+  - Created renderNarrowActivityLine() with more aggressive truncation
+  - Created renderNarrowLogHeader() for condensed log view header with scroll icon indicator
+  - Added truncateWithEllipsis() helper function for graceful text truncation
+  - Updated renderLogView() to use narrow variants in narrow mode
+  - Comprehensive unit tests for layout calculations (isNarrowMode, truncation, panel widths)
+- Files changed:
+  - internal/tui/dashboard.go (modified - added narrow mode support, stacked layout, condensed UI)
+  - internal/tui/layout_test.go (new - unit tests for layout calculations)
+- **Learnings for future iterations:**
+  - Use a threshold constant (narrowWidthThreshold = 100) for consistent layout switching
+  - Stacked layout divides height: 40% stories, 60% details with minimum 5 lines for stories
+  - Condensed shortcuts show just the keys without descriptions (e.g., "s t l ? j/k q")
+  - Use icons for indicators in narrow mode (▼/▽ for auto-scroll instead of text)
+  - truncateWithEllipsis handles edge cases: maxLen <= 3 doesn't add ellipsis, returns substring
+  - Panel width in stacked mode: a.width - 2 (account for borders only, not gap)
+---
+
+## 2026-01-25 - US-015
+- What was implemented:
+  - Added renderErrorPanel() function to display error details in the right panel when in error state
+  - Error panel shows: red ERROR indicator, error message with word wrapping, claude.log hint, retry instructions
+  - Added renderEmptyPRDPanel() function for empty PRD state with chief new instructions
+  - Added hasInterruptedStory() and getInterruptedStory() helper functions
+  - Added renderInterruptedWarning() for displaying a warning banner when there's an inProgress story
+  - Updated renderDetailsPanel() to check for empty PRD, error state, and interrupted stories
+  - Modified 's' key handler in app.go to allow retrying from error and stopped states
+  - Footer already shows "s: retry" in error state (was already implemented in US-007)
+- Files changed:
+  - internal/tui/dashboard.go (modified - added error panel, empty panel, interrupted warning)
+  - internal/tui/app.go (modified - extended 's' key handler to include error/stopped states)
+- **Learnings for future iterations:**
+  - Details panel order: check empty PRD first, then error state, then normal rendering
+  - Interrupted story warning is shown only in Ready state (not when running or in error)
+  - Error messages are wrapped using existing wrapText() helper for consistent display
+  - Use StateErrorStyle from styles.go for consistent error text coloring
+  - Empty state should show both the problem AND actionable instructions (chief new command)
+  - Warning banner uses a dark amber background (#3D3000) with yellow text for visibility
+---
+
+## 2026-01-25 - US-016
+- What was implemented:
+  - Created embed/init_prompt.txt with PRD generator prompt that guides Claude to create structured PRDs
+  - Updated embed/embed.go with GetInitPrompt() function for context substitution
+  - Created internal/cmd/init.go with RunInit() function implementing the init command
+  - Supports: chief new, chief new <name>, chief new <name> <context>
+  - Creates directory structure .chief/prds/<name>/ if it doesn't exist
+  - Validates PRD names (alphanumeric, hyphens, underscores only)
+  - Detects existing PRDs and suggests chief edit instead
+  - Launches interactive Claude session with -p flag for PRD creation
+  - Added RunConvert() function for prd.md to prd.json conversion (basic implementation, to be enhanced in US-018)
+  - Updated cmd/chief/main.go with subcommand handling (init, help)
+  - Added help command with usage examples
+  - Comprehensive unit tests for name validation, JSON cleaning, directory creation
+- Files changed:
+  - embed/init_prompt.txt (new)
+  - embed/embed.go (modified - added GetInitPrompt)
+  - internal/cmd/init.go (new)
+  - internal/cmd/init_test.go (new)
+  - cmd/chief/main.go (modified - subcommand handling)
+- **Learnings for future iterations:**
+  - Use exec.Command with -p flag for interactive Claude sessions (not --dangerously-skip-permissions)
+  - The internal/cmd package is good for CLI command logic, separate from TUI
+  - Name validation can be done inline with character range checks (simpler than regex)
+  - JSON cleaning helper is useful for removing markdown code blocks from Claude output
+  - Use {{PLACEHOLDER}} pattern consistently for string substitution in embedded prompts
+---
+
+## 2026-01-25 - US-017
+- What was implemented:
+  - Created embed/edit_prompt.txt with PRD editor prompt that guides Claude to edit existing PRDs
+  - Updated embed/embed.go with GetEditPrompt() function (no placeholders needed for edit)
+  - Created internal/cmd/edit.go with RunEdit() function implementing the edit command
+  - Supports: chief edit, chief edit <name>, chief edit <name> --merge, chief edit <name> --force
+  - Validates PRD name and checks that prd.md exists (suggests chief new if not)
+  - Launches interactive Claude session with embedded edit prompt
+  - After session ends, runs conversion with progress protection options (--merge, --force)
+  - Added ConvertOptions struct and RunConvertWithOptions() function for conversion with flags
+  - Updated cmd/chief/main.go with edit subcommand handling and argument parsing
+  - Updated help text with edit command examples and options
+  - Comprehensive unit tests for edit command edge cases
+- Files changed:
+  - embed/edit_prompt.txt (new)
+  - embed/embed.go (modified - added GetEditPrompt)
+  - internal/cmd/edit.go (new)
+  - internal/cmd/edit_test.go (new)
+  - internal/cmd/init.go (modified - added ConvertOptions, RunConvertWithOptions)
+  - cmd/chief/main.go (modified - added edit subcommand)
+- **Learnings for future iterations:**
+  - Edit command structure mirrors init but checks for existing prd.md instead of refusing if it exists
+  - ConvertOptions pattern sets up for US-019 progress protection - flags are parsed but not yet implemented
+  - Edit prompt focuses on preserving story IDs and structure while making changes
+  - --merge and --force flags are separate from the name argument (non-flag parsing needed)
+---
+
+## 2026-01-25 - US-018
+- What was implemented:
+  - Created embed/convert_prompt.txt with detailed converter prompt for prd.md to prd.json conversion
+  - Updated embed/embed.go with GetConvertPrompt() function using //go:embed
+  - Created internal/prd/generator.go with Convert() and NeedsConversion() functions
+  - Convert() invokes Claude one-shot (--dangerously-skip-permissions -p --output-format text) for non-interactive conversion
+  - NeedsConversion() compares modification times of prd.md and prd.json
+  - Added validateJSON() function to verify conversion output is valid JSON
+  - Added PRD structure validation using LoadPRD() after conversion
+  - Refactored internal/cmd/init.go to delegate to the new prd.Convert() function
+  - Updated cmd/chief/main.go to check NeedsConversion() before starting TUI
+  - Auto-conversion runs: after chief new, after chief edit, before chief run (if prd.md newer)
+  - Comprehensive unit tests for cleanJSONOutput, validateJSON, NeedsConversion functions
+  - Added tests for GetConvertPrompt, GetInitPrompt, GetEditPrompt in embed_test.go
+- Files changed:
+  - embed/convert_prompt.txt (new)
+  - embed/embed.go (modified - added GetConvertPrompt)
+  - embed/embed_test.go (modified - added tests for all prompt functions)
+  - internal/prd/generator.go (new)
+  - internal/prd/generator_test.go (new)
+  - internal/cmd/init.go (modified - refactored to use prd.Convert)
+  - internal/cmd/init_test.go (modified - removed duplicate cleanJSONOutput test)
+  - cmd/chief/main.go (modified - added pre-run conversion check)
+- **Learnings for future iterations:**
+  - Use internal/prd package for PRD-related logic (loading, saving, conversion, watching)
+  - NeedsConversion() pattern: compare file modification times with os.Stat().ModTime()
+  - JSON validation: use json.RawMessage for quick validity check, then LoadPRD() for structure validation
+  - Converter prompt should instruct Claude to read the file and output only JSON (no code blocks)
+  - cleanJSONOutput() handles edge cases where Claude outputs markdown code blocks anyway
+  - Pre-run conversion in main.go ensures prd.json is always up-to-date when TUI starts
+---
+
+## 2026-01-25 - US-019
+- What was implemented:
+  - Created HasProgress() function to detect if prd.json has any passes: true or inProgress: true stories
+  - Created MergeProgress() function to preserve status for matching story IDs during conversion
+  - Added ProgressConflictChoice type with ChoiceMerge, ChoiceOverwrite, ChoiceCancel constants
+  - Created promptProgressConflict() function to show user prompt with Merge/Overwrite/Cancel options
+  - Updated Convert() function to check for progress conflicts before writing new prd.json
+  - --merge flag auto-merges without prompting (uses ChoiceMerge)
+  - --force flag auto-overwrites without prompting (uses ChoiceOverwrite)
+  - Comprehensive unit tests for HasProgress() and MergeProgress() covering:
+    - Nil and empty PRD handling
+    - Matching story IDs preserving passes/inProgress status
+    - New stories added without progress
+    - Removed stories being dropped
+    - Mixed scenarios (add, remove, keep)
+    - Reordered stories preserving progress by ID
+- Files changed:
+  - internal/prd/generator.go (modified - added progress protection logic)
+  - internal/prd/generator_test.go (modified - added comprehensive merge tests)
+- **Learnings for future iterations:**
+  - Use a map[string]struct{} pattern for efficient story ID lookups during merge
+  - Prompt functions should accept *PRD for both old and new to show progress counts
+  - bufio.Reader is needed for interactive user input during conversion
+  - Progress protection only triggers when HasProgress() returns true AND prd.json exists
+  - MergeProgress modifies newPRD in place, so re-marshal after merge for final output
+---
+
+## 2026-01-25 - US-020
+- What was implemented:
+  - Created internal/notify/sound.go with Notifier struct for audio playback
+  - Embedded ~17KB WAV file using //go:embed directive (mono, 22050Hz, 16-bit, 0.4s duration)
+  - Created gen_wav.go utility to generate the completion sound (C major chord chime with decay)
+  - Used github.com/hajimehoshi/oto/v2 for cross-platform audio playback
+  - Added --no-sound flag to disable audio notifications
+  - Sound plays when any PRD completes (via completion callback) or max iterations reached
+  - Audio errors are logged as warnings but don't crash the application
+  - Added SetCompletionCallback to App for triggering sound from loop completion events
+  - Comprehensive unit tests for WAV generation, reader, and notifier state
+- Files changed:
+  - internal/notify/sound.go (new)
+  - internal/notify/sound_test.go (new)
+  - internal/notify/gen_wav.go (new)
+  - internal/notify/complete.wav (new - generated)
+  - cmd/chief/main.go (modified - added --no-sound flag and sound initialization)
+  - go.mod, go.sum (modified - added oto/v2 dependency)
+- **Learnings for future iterations:**
+  - oto.Context should be singleton (one per process) - use sync.Once pattern
+  - Use smaller sample rates (22050) and mono channel for smaller embedded assets
+  - WAV format: 44-byte header (RIFF/WAVE/fmt/data chunks), then raw PCM data
+  - Play audio in goroutine to avoid blocking the UI
+  - Error handling for audio should be graceful - not all systems have audio devices
+  - The completion callback pattern allows sound to play for ANY PRD completing, not just the viewed one
+---
+
+## 2026-01-25 - US-021
+- What was implemented:
+  - Created internal/cmd/status.go with RunStatus() and RunList() functions
+  - `chief status` prints progress for default PRD (main): project name, X/Y stories complete, list of incomplete stories
+  - `chief status <name>` prints progress for a specific PRD
+  - `chief list` prints all PRDs in .chief/prds/ with name, title, and progress percentage
+  - Output is plain text, suitable for scripting
+  - Exit code 0 for success, non-zero for errors (handled in main.go)
+  - Handles edge cases: missing PRD (error), no PRDs directory (friendly message), empty PRD (no stories), all complete
+  - Updated cmd/chief/main.go with status and list subcommands
+  - Updated help text with new commands and examples
+  - Comprehensive unit tests for all scenarios
+- Files changed:
+  - internal/cmd/status.go (new)
+  - internal/cmd/status_test.go (new)
+  - cmd/chief/main.go (modified - added status/list subcommands, help text)
+- **Learnings for future iterations:**
+  - Follow existing cmd package patterns (XxxOptions struct, RunXxx function)
+  - Use BaseDir field in options struct for easy testing with t.TempDir()
+  - The PRD package LoadPRD() is the canonical way to load PRDs
+  - For list commands, skip invalid PRDs gracefully rather than failing (os.ReadDir + continue on LoadPRD error)
+  - Output format should be plain text suitable for scripting (no fancy formatting)
+---
+
+## 2026-01-25 - US-022
+- What was implemented:
+  - Complete CLI flag parsing for the TUI with all required flags
+  - --max-iterations N, -n N: Set iteration limit (default: 10) with validation
+  - --no-sound: Disable completion sound notifications
+  - --verbose: Show raw Claude output in log (added SetVerbose method to App)
+  - --merge: Auto-merge on conversion conflicts (passed to prd.Convert)
+  - --force: Auto-overwrite on conversion conflicts (passed to prd.Convert)
+  - Positional argument: PRD name (loads .chief/prds/<name>/prd.json) or path to prd.json
+  - --help, -h: Show comprehensive usage with all flags documented
+  - --version, -v: Show version number (set at build time via ldflags, defaults to "dev")
+  - TUIOptions struct for clean option passing
+  - parseTUIFlags() function for argument parsing
+  - Error handling for unknown flags, invalid values, and missing required values
+  - Support for both --max-iterations N and --max-iterations=N formats
+- Files changed:
+  - cmd/chief/main.go (modified - added Version variable, TUIOptions struct, parseTUIFlags, updated help text)
+  - internal/tui/app.go (modified - added verbose field and SetVerbose method)
+- **Learnings for future iterations:**
+  - Use switch case for flag parsing with string prefix checks for =value syntax
+  - Handle both --flag N and --flag=N formats for flags with values
+  - Version should be set via ldflags at build time: -ldflags "-X main.Version=x.y.z"
+  - Subcommand detection should happen first (before flag parsing) to avoid conflicts
+  - Return nil from flag parser to indicate help/version was already handled
+  - Validate numeric flags (must be >= 1 for max-iterations)
+---
+
+## 2026-01-25 - US-023
+- What was implemented:
+  - Created .goreleaser.yaml with comprehensive build configuration
+  - Build targets: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64, windows/amd64
+  - Binary name: chief
+  - Version info embedded via ldflags (-X main.Version={{.Version}})
+  - Separate build IDs for darwin, linux, and windows for platform-specific settings
+  - Archives: .tar.gz for Unix platforms, .zip for Windows
+  - Checksums file generated for all archives
+  - Added build tags to sound.go for CGO support (darwin || windows || (linux && cgo))
+  - Created sound_nocgo.go stub for Linux builds without CGO
+  - Moved WAV generation utilities to wav.go for clean separation
+  - goreleaser release --snapshot --clean successfully produces all 5 binaries
+- Files changed:
+  - .goreleaser.yaml (new)
+  - internal/notify/sound.go (modified - added build tag, removed WAV utilities)
+  - internal/notify/sound_nocgo.go (new - stub for Linux without CGO)
+  - internal/notify/wav.go (new - WAV generation utilities)
+  - go.mod, go.sum (modified - go mod tidy)
+- **Learnings for future iterations:**
+  - oto/v2 requires CGO on Linux (ALSA via cgo) but works without CGO on macOS (purego) and Windows (syscalls)
+  - Use build tags to provide stub implementations for platforms without CGO support
+  - goreleaser overrides must specify both goos and goarch for platform-specific settings
+  - goreleaser v2 config uses 'formats' (plural) instead of deprecated 'format'
+  - Linux builds without CGO will have no audio - the code gracefully handles this with a warning message
+  - For full audio support on Linux, build natively with CGO_ENABLED=1 and libasound2-dev installed
+---
+
+## 2026-01-25 - US-024
+- What was implemented:
+  - Created Formula/chief.rb with Homebrew formula for macOS and Linux
+  - Formula supports all platforms: darwin/amd64, darwin/arm64, linux/amd64, linux/arm64
+  - Used on_macos/on_linux and on_intel/on_arm blocks for platform-specific binary downloads
+  - Added description and homepage to formula
+  - Updated .goreleaser.yaml with brews section for automatic formula generation on release
+  - Configured goreleaser to push formula to minicodemonkey/homebrew-chief tap repository
+  - Formula includes test block that verifies --version output
+- Files changed:
+  - Formula/chief.rb (new)
+  - .goreleaser.yaml (modified - added brews section)
+- **Learnings for future iterations:**
+  - Homebrew formulas use on_macos/on_linux with nested on_intel/on_arm for platform-specific URLs
+  - goreleaser brews section auto-generates formula with correct SHA256 checksums during release
+  - Use separate tap repository (homebrew-<name>) for easier Homebrew distribution
+  - Formula template in repo can have PLACEHOLDER SHA256 values that goreleaser replaces
+  - test block should use assert_match with version.to_s for version verification
+---
+
+## 2026-01-25 - US-025
+- What was implemented:
+  - Created install.sh script for users without Homebrew
+  - OS detection: darwin/linux (Windows unsupported with friendly error)
+  - Architecture detection: amd64/arm64 via uname -m
+  - Downloads binary from GitHub releases with correct archive name
+  - Verifies SHA256 checksum from checksums.txt before installing
+  - Installs to /usr/local/bin (with sudo if needed) or ~/.local/bin fallback
+  - Script is idempotent - safe to run multiple times
+  - Supports --version flag to install specific versions
+  - Uses curl or wget (whichever is available)
+  - Uses sha256sum or shasum -a 256 (whichever is available)
+  - Provides colored output when running in terminal
+  - Shows PATH warning if install dir not in PATH
+  - CHIEF_INSTALL_DIR env var to override installation directory
+- Files changed:
+  - install.sh (new - 337 lines)
+- **Learnings for future iterations:**
+  - Use set -e for fail-fast behavior in install scripts
+  - Detect tty with `[ -t 1 ]` to conditionally enable colors
+  - Support both curl and wget for maximum compatibility
+  - Archive naming follows goreleaser pattern: name_version_os_arch.tar.gz
+  - Use mktemp -d for cross-platform temp directory creation
+  - trap 'rm -rf "$TMP_DIR"' EXIT ensures cleanup on any exit
+  - Checksum verification is critical for security - warn but don't fail if unavailable
+---
+
+## 2026-01-25 - US-026
+- What was implemented:
+  - Created comprehensive README.md with all required sections:
+    - Quick Start guide with installation and first usage
+    - How It Works with ASCII data flow diagram showing the agent loop
+    - Installation section (Homebrew, install script, from source)
+    - Usage examples with commands and options tables
+    - Keyboard shortcuts table for all views (Dashboard, Log, Picker)
+    - PRD format reference with JSON schema and field descriptions
+    - Directory structure documentation
+    - Parallel execution and progress protection docs
+    - Troubleshooting section with common issues
+  - Created docs/adr/ with 6 Architecture Decision Records:
+    - ADR-0001: Use Bubble Tea for TUI (Elm architecture benefits)
+    - ADR-0002: Parse Claude's Stream-JSON Output (real-time events)
+    - ADR-0003: Support Parallel PRD Execution (Manager pattern)
+    - ADR-0004: Embed Prompts in Binary (go:embed)
+    - ADR-0005: Watch PRD File for Changes (fsnotify)
+    - ADR-0006: Audio Completion Notifications (oto/v2)
+  - Added package-level doc comments to all packages (embed, tui, loop, prd, cmd, notify)
+  - Fixed go.mod module name from 'chief' to 'github.com/minicodemonkey/chief'
+- Files changed:
+  - README.md (new)
+  - docs/adr/README.md (new)
+  - docs/adr/0001-use-bubble-tea-for-tui.md (new)
+  - docs/adr/0002-stream-json-parsing.md (new)
+  - docs/adr/0003-parallel-prd-execution.md (new)
+  - docs/adr/0004-embedded-prompts.md (new)
+  - docs/adr/0005-prd-file-watching.md (new)
+  - docs/adr/0006-audio-notifications.md (new)
+  - embed/embed.go (modified - added package doc)
+  - internal/tui/styles.go (modified - added package doc)
+  - internal/loop/loop.go (modified - added package doc)
+  - internal/prd/types.go (modified - added package doc)
+  - internal/cmd/init.go (modified - added package doc)
+  - internal/notify/sound.go (modified - added package doc)
+  - go.mod (modified - fixed module name)
+  - go.sum (modified - synced dependencies)
+- **Learnings for future iterations:**
+  - ADRs are valuable for documenting architectural decisions and their rationale
+  - ASCII diagrams work well for showing data flow in README files
+  - Package-level doc comments are placed immediately before the package declaration
+  - The go.mod module name must match the import paths used throughout the codebase
+  - Documentation should include troubleshooting for common issues users might encounter
+---
+
